@@ -1,4 +1,4 @@
-import  crypto  from "crypto";
+import { Base8, mulPointEscalar } from "@zk-kit/baby-jubjub";
 
 /**
  * Generates a pair of public keys from a user-provided secret.
@@ -10,22 +10,31 @@ export async function generateKeysFromSecret(
   secretValue: string
 ): Promise<{ pubKeyX: string; pubKeyY: string }> {
   
-  // --- TEMPLATE START ---
-  // This is a simple, deterministic placeholder.
-  // You should replace this with your real cryptographic algorithm.
+
   console.log(`Generating keys for secret: ${secretValue}`);
 
-  // Example: Using crypto to create a deterministic "key"
-  // Your real logic will be much more complex.
-  const hash = crypto.createHash("sha256").update(secretValue).digest("hex");
+const hexSecret = convertToHex(secretValue)
+  const key = derivePublicKey(hexSecret);
 
-  // Split the hash to simulate two keys
-  const pubKeyX = `0x${hash.substring(0, 32)}`;
-  const pubKeyY = `0x${hash.substring(32, 64)}`;
-
-  // Simulate an async operation (e.g., calling a WASM module)
-  await new Promise(resolve => setTimeout(resolve, 50)); 
-  // --- TEMPLATE END ---
+  const pubKeyX = key.x;
+  const pubKeyY = key.y;
 
   return { pubKeyX, pubKeyY };
+}
+
+function derivePublicKey(privateKeyHex : string) {
+    const privateKey = BigInt(privateKeyHex);
+    const publicKey = mulPointEscalar(Base8, privateKey);
+    return {
+        x: `0x${publicKey[0].toString(16)}`,
+        y: `0x${publicKey[1].toString(16)}`,
+    };
+}
+
+function convertToHex(str: string) {
+    var hex = '';
+    for(var i=0;i<str.length;i++) {
+        hex += ''+str.charCodeAt(i).toString(16);
+    }
+    return hex;
 }

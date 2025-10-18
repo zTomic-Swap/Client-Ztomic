@@ -89,8 +89,8 @@ export default function Dashboard() {
               <div className="mt-1">
                 <p className="text-sm font-medium text-foreground">{userIdentity.identity}</p>
                 <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
-                  <p>Key X: {userIdentity.pubKeyX.substring(0, 12)}...</p>
-                  <p>Key Y: {userIdentity.pubKeyY.substring(0, 12)}...</p>
+                  <p>Key X: {userIdentity.pubKeyX}</p>
+                  <p>Key Y: {userIdentity.pubKeyY}</p>
                 </div>
               </div>
             )}
