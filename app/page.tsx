@@ -27,7 +27,7 @@ export default function Home() {
       {!userIdentity ? (
         <WalletConnect onConnect={handleWalletConnect} />
       ) : (
-        <Dashboard userIdentity={userIdentity} onDisconnect={handleDisconnect} />
+        <Dashboard />
       )}
     </main>
   )

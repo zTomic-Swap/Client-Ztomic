@@ -8,15 +8,15 @@ import CreateIntent from "@/components/create-intent"
 import BrowseOrders from "@/components/browse-orders"
 import OrderManagement from "@/components/order-management"
 import PrivateSwap from "@/components/private-swap"
+import { useUserIdentity } from "@/context/UserIdentityContext" // 1. Import the hook
 
-interface DashboardProps {
-  userIdentity: { address: string; identity: string; pubKeyX: string; pubKeyY: string } | null
-  onDisconnect: () => void
-}
-
+// 2. The component no longer needs to define or receive props for identity
 type View = "home" | "create" | "browse" | "manage" | "swap"
 
-export default function Dashboard({ userIdentity, onDisconnect }: DashboardProps) {
+export default function Dashboard() {
+  // 3. Get identity and disconnect function directly from the global context
+  const { userIdentity, disconnect } = useUserIdentity()
+
   const [currentView, setCurrentView] = useState<View>("home")
   const [selectedOrder, setSelectedOrder] = useState<any>(null)
   const [userRole, setUserRole] = useState<"initiator" | "counterparty" | null>(null)
@@ -26,18 +26,12 @@ export default function Dashboard({ userIdentity, onDisconnect }: DashboardProps
   const isLoading = useIntentStore((s) => s.isLoading)
   const error = useIntentStore((s) => s.error)
 
-
-  // If the current user is selected as the counterparty for any intent, navigate
-  // them to the swap view for that intent. This allows the counterparty to be
-  // notified and enter the private swap flow when the initiator picks them.
   useEffect(() => {
     if (!userIdentity) return
-
     if (suppressAutoOpen) return
 
     const matched = intents.find((i) => i.selectedCounterparty === userIdentity.identity && i.status === "active")
     if (matched) {
-      // Avoid unnecessary state updates if already viewing the same swap
       if (selectedOrder?.id !== matched.id) {
         setSelectedOrder(matched)
         setUserRole(matched.initiator === userIdentity.identity ? "initiator" : "counterparty")
@@ -90,10 +84,21 @@ export default function Dashboard({ userIdentity, onDisconnect }: DashboardProps
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold text-foreground">ZK Privacy Swap</h1>
-            <p className="text-xs text-muted-foreground">{userIdentity?.identity}</p>
+            {/* --- MODIFICATION START --- */}
+            {userIdentity && (
+              <div className="mt-1">
+                <p className="text-sm font-medium text-foreground">{userIdentity.identity}</p>
+                <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
+                  <p>Key X: {userIdentity.pubKeyX.substring(0, 12)}...</p>
+                  <p>Key Y: {userIdentity.pubKeyY.substring(0, 12)}...</p>
+                </div>
+              </div>
+            )}
+            {/* --- MODIFICATION END --- */}
           </div>
+          {/* 4. Use the disconnect function from the context */}
           <Button
-            onClick={onDisconnect}
+            onClick={disconnect}
             variant="outline"
             className="border-border text-foreground hover:bg-secondary bg-transparent"
           >
@@ -101,8 +106,7 @@ export default function Dashboard({ userIdentity, onDisconnect }: DashboardProps
           </Button>
         </div>
       </header>
-      {/* If user suppressed auto-open, but there's still an active selected swap for them,
-          offer a button to open it manually */}
+      {/* If user suppressed auto-open... */}
       {suppressAutoOpen && userIdentity && (
         <div className="max-w-7xl mx-auto px-4 py-2">
           {intents.some((i) => i.selectedCounterparty === userIdentity.identity && i.status === "active") && (
@@ -198,7 +202,6 @@ export default function Dashboard({ userIdentity, onDisconnect }: DashboardProps
           <div>
             <Button
               onClick={() => {
-                // Allow the user to navigate away and suppress automatic reopening
                 setSuppressAutoOpen(true)
                 setCurrentView("home")
                 setSelectedOrder(null)
@@ -216,3 +219,4 @@ export default function Dashboard({ userIdentity, onDisconnect }: DashboardProps
     </div>
   )
 }
+
