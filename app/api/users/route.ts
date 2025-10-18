@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { readUserKeys, writeUserKeys } from "@/app/lib/userData";
 import { UserKey } from "@/app/lib/types";
+import { generateKeysFromSecret } from "@/app/lib/keyGeneration"; // Import your new function
 
 /**
  * GET: Retrieve all user-key mappings
+ * (No changes needed)
  */
 export async function GET(request: Request) {
   try {
@@ -18,15 +20,20 @@ export async function GET(request: Request) {
 }
 
 /**
- * POST: Create a new user-key mapping
+ * POST: Create a new user and generate keys from a secret
+ * (This is the updated part)
  */
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as UserKey;
+    // 1. Now we expect userName and secretValue
+    const body = (await request.json()) as {
+      userName: string;
+      secretValue: string;
+    };
 
-    if (!body.userName || !body.pubKeyX || !body.pubKeyY) {
+    if (!body.userName || !body.secretValue) {
       return NextResponse.json(
-        { error: "Missing required fields: userName, pubKeyX, pubKeyY" },
+        { error: "Missing required fields: userName, secretValue" },
         { status: 400 }
       );
     }
@@ -41,10 +48,14 @@ export async function POST(request: Request) {
       );
     }
 
+    // 2. Call your key generation algorithm
+    const { pubKeyX, pubKeyY } = await generateKeysFromSecret(body.secretValue);
+
+    // 3. Create the new user with the generated keys
     const newUser: UserKey = {
       userName: body.userName,
-      pubKeyX: body.pubKeyX,
-      pubKeyY: body.pubKeyY,
+      pubKeyX: pubKeyX,
+      pubKeyY: pubKeyY,
     };
 
     const updatedUsers = [newUser, ...users];
