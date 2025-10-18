@@ -1,4 +1,4 @@
-import { crypto } from "crypto";
+import  crypto  from "crypto";
 
 /**
  * Generates a pair of public keys from a user-provided secret.

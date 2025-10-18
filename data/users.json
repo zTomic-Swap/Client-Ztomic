@@ -1,0 +1,22 @@
+[
+  {
+    "userName": "hero.ztom",
+    "pubKeyX": "0x4706484582ca019815d7824470954fa0",
+    "pubKeyY": "0x3beef340e1335c66367923bab0f2f9c5"
+  },
+  {
+    "userName": "yash",
+    "pubKeyX": "0x7a78be168f8d95d9ffbdd3f33c887acf",
+    "pubKeyY": "0xc3b5234fd90d0220484173ebb118f129"
+  },
+  {
+    "userName": "alice.ztom",
+    "pubKeyX": "0x1a2b3c4d5e6f...",
+    "pubKeyY": "0x7g8h9i0j1k2l..."
+  },
+  {
+    "userName": "bob.ztom",
+    "pubKeyX": "0x3m4n5o6p7q8r...",
+    "pubKeyY": "0x9s0t1u2v3w4x..."
+  }
+]
