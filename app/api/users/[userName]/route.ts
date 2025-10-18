@@ -1,20 +1,22 @@
 import { NextResponse } from "next/server";
 import { readUserKeys, writeUserKeys } from "@/app/lib/userData";
 import { UserKey } from "@/app/lib/types";
-import { generateKeysFromSecret } from "@/app/lib/keyGeneration"; // Import your new function
+import { generateKeysFromSecret } from "@/app/lib/keyGeneration";
 
-interface RouteContext {
-  params: { userName: string };
+// Define the type for the destructured params
+interface RouteParams {
+  params: {
+    userName: string;
+  };
 }
 
 /**
  * GET: Retrieve a single user-key mapping by userName
- * (No changes needed)
  */
-export async function GET(request: Request, context: RouteContext) {
+export async function GET(request: Request, { params }: RouteParams) {
   try {
     const users = await readUserKeys();
-    const userName = decodeURIComponent(context.params.userName);
+    const userName = decodeURIComponent(params.userName);
     const user = users.find((u) => u.userName === userName);
 
     if (!user) {
@@ -31,17 +33,13 @@ export async function GET(request: Request, context: RouteContext) {
 
 /**
  * PUT: Update a user's keys by re-generating from a new secret
- * (This is the updated part)
  */
-export async function PUT(request: Request, context: RouteContext) {
+export async function PUT(request: Request, { params }: RouteParams) {
   try {
-    // 1. Expect a body that *might* contain a new secretValue
-    // We separate the secret from other potential updates
     const { secretValue, ...otherUpdates } = (await request.json()) as Partial<UserKey> & {
       secretValue?: string;
     };
-
-    const userName = decodeURIComponent(context.params.userName);
+    const userName = decodeURIComponent(params.userName);
     const users = await readUserKeys();
     const userIndex = users.findIndex((u) => u.userName === userName);
 
@@ -50,22 +48,18 @@ export async function PUT(request: Request, context: RouteContext) {
     }
 
     let generatedKeys = {};
-    // 2. If a new secret is provided, generate new keys
     if (secretValue) {
       generatedKeys = await generateKeysFromSecret(secretValue);
     }
     
-    // 3. We explicitly block pubKeyX/Y from being set directly in the body
-    //    by not including them in `otherUpdates` if they exist.
     delete otherUpdates.pubKeyX;
     delete otherUpdates.pubKeyY;
 
-    // 4. Merge the old user data, any "other" updates, and the new keys (if generated)
     const updatedUser = {
-      ...users[userIndex], // Old data
-      ...otherUpdates,     // Other non-key updates
-      ...generatedKeys,    // New keys (overwrites old)
-      userName: userName,  // Ensure userName cannot be changed
+      ...users[userIndex],
+      ...otherUpdates,
+      ...generatedKeys,
+      userName: userName,
     };
 
     users[userIndex] = updatedUser;
@@ -82,12 +76,11 @@ export async function PUT(request: Request, context: RouteContext) {
 
 /**
  * DELETE: Delete a single user-key mapping by userName
- * (No changes needed)
  */
-export async function DELETE(request: Request, context: RouteContext) {
+export async function DELETE(request: Request, { params }: RouteParams) {
   try {
-    const userName = decodeURIComponent(context.params.userName);
     const users = await readUserKeys();
+    const userName = decodeURIComponent(params.userName);
     const newUsers = users.filter((u) => u.userName !== userName);
 
     if (users.length === newUsers.length) {
@@ -103,3 +96,4 @@ export async function DELETE(request: Request, context: RouteContext) {
     );
   }
 }
+
