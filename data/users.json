@@ -1,5 +1,10 @@
 [
   {
+    "userName": "yoo",
+    "pubKeyX": "0xd85bb3e3204117c4257cc224b95b6ec3",
+    "pubKeyY": "0xb861e5b832c339af01936c28a5dc63e6"
+  },
+  {
     "userName": "hero.ztom",
     "pubKeyX": "0x4706484582ca019815d7824470954fa0",
     "pubKeyY": "0x3beef340e1335c66367923bab0f2f9c5"
