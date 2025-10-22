@@ -14,6 +14,7 @@ interface DepositSectionProps {
   onDeposit: (amount: string) => void
   isLoading?: boolean
   counterpartyName?: string
+  orderId?: string
 }
 
 export default function DepositSection({
@@ -25,6 +26,7 @@ export default function DepositSection({
   onDeposit,
   isLoading = false,
   counterpartyName,
+  orderId
 }: DepositSectionProps) {
   const [depositAmount, setDepositAmount] = useState("")
 

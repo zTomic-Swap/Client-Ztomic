@@ -8,7 +8,7 @@ import MessageBoard, { type SwapMessage } from "@/components/message-board"
 import DepositTracker from "@/components/deposit-tracker"
 import EventLog from "@/components/event-log"
 import { useEventMonitor, type DepositRecord } from "@/components/event-monitor"
-import { UserIdentity } from "@/context/UserIdentityContext"
+// import { UserIdentity } from "@/context/UserIdentityContext"
 import { useIntentStore } from "@/components/intent-store"
 
 interface PrivateSwapProps {
@@ -182,13 +182,17 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
             <p className="text-xs text-muted-foreground mb-1">Amount</p>
             <p className="text-sm font-medium text-foreground">{order.amount}</p>
           </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Order Id</p>
+            <p className="text-sm font-medium text-foreground">{order.id}</p>
+          </div>
         </div>
       </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-4">
-          <DepositSection title={userRole === "initiator" ? "Your Deposit" : `${order.initiator}'s Deposit`} token={order.fromToken} amount={order.amount} isUserDeposit={userRole === "initiator"} hasDeposited={userADeposited} onDeposit={handleDeposit} isLoading={isDepositing} counterpartyName={order.initiator} />
-          <DepositSection title={userRole === "counterparty" ? "Your Deposit" : `${getCounterpartyName()}'s Deposit`} token={order.toToken} amount={order.amount} isUserDeposit={userRole === "counterparty"} hasDeposited={userBDeposited} onDeposit={handleDeposit} isLoading={isDepositing} counterpartyName={getCounterpartyName()} />
+          <DepositSection title={userRole === "initiator" ? "Your Deposit" : `${order.initiator}'s Deposit`} token={order.fromToken} amount={order.amount} isUserDeposit={userRole === "initiator"} hasDeposited={userADeposited} onDeposit={handleDeposit} isLoading={isDepositing} counterpartyName={order.initiator} orderId={order.id} />
+          <DepositSection title={userRole === "counterparty" ? "Your Deposit" : `${getCounterpartyName()}'s Deposit`} token={order.toToken} amount={order.amount} isUserDeposit={userRole === "counterparty"} hasDeposited={userBDeposited} onDeposit={handleDeposit} isLoading={isDepositing} counterpartyName={getCounterpartyName()} orderId={order.id} />
           <DepositTracker swapId={order.id} userAddress={userRole === "initiator" ? order.initiatorAddress : userIdentity.address} counterpartyAddress={counterpartyIdentity?.userName || ""} initiatorToken={order.fromToken} counterpartyToken={order.toToken} />
         </div>
 

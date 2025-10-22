@@ -1,9 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
+import { ConnectButton } from "@rainbow-me/rainbowkit"
+import { useAccount } from "wagmi"
 
 // The UserKey type should match the one in your API lib for consistency
 interface UserKey {
@@ -24,12 +26,19 @@ export default function WalletConnect({ onConnect }: WalletConnectProps) {
   const [secretValue, setSecretValue] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { address, isConnected } = useAccount();
 
-  const handleWalletConnect = () => {
-    if (walletAddress.trim()) {
-      setStep("identity")
+  // const handleWalletConnect = () => {
+  //   if (walletAddress.trim()) {
+  //     setStep("identity")
+  //   }
+  // }
+
+  useEffect(() => {
+    if (isConnected && address) {
+      setStep("identity");
     }
-  }
+  },[isConnected])
 
   /**
    * Handles the REGISTER flow by creating a new user and generating keys.
@@ -127,13 +136,14 @@ export default function WalletConnect({ onConnect }: WalletConnectProps) {
                   className="bg-secondary border-border text-foreground placeholder:text-muted-foreground"
                 />
               </div>
-              <Button
+              {/* <Button
                 onClick={handleWalletConnect}
                 disabled={!walletAddress.trim()}
                 className="w-full bg-primary text-primary-foreground hover:bg-primary/90 mt-3"
               >
                 Connect Wallet
-              </Button>
+              </Button> */}
+              <ConnectButton/>
             </div>
           ) : (
             <div>
