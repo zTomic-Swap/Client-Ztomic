@@ -14,7 +14,7 @@ export async function generateKeysFromSecret(
   console.log(`Generating keys for secret: ${secretValue}`);
 
 const hexSecret = convertToHex(secretValue)
-  const key = derivePublicKey(secretValue);
+  const key = derivePublicKey(hexSecret);
 
   const pubKeyX = key.x;
   const pubKeyY = key.y;

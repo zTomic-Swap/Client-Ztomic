@@ -11,7 +11,7 @@ interface DepositSectionProps {
   amount: number
   isUserDeposit: boolean
   hasDeposited: boolean
-  onDeposit: (amount: string) => void
+  onDeposit: (amount: string, secret: string) => void
   isLoading?: boolean
   counterpartyName?: string
   orderId?: string
@@ -29,10 +29,11 @@ export default function DepositSection({
   orderId
 }: DepositSectionProps) {
   const [depositAmount, setDepositAmount] = useState("")
+  const [secret, setSecret] = useState("");
 
   const handleDeposit = () => {
     if (depositAmount) {
-      onDeposit(depositAmount)
+      onDeposit(depositAmount, secret)
       setDepositAmount("")
     }
   }
@@ -78,6 +79,14 @@ export default function DepositSection({
                   disabled={isLoading}
                   className="bg-secondary border-border text-foreground"
                 />
+                 <Input
+                  type="text"
+                  placeholder={`Enter Secret Key`}
+                  value={secret}
+                  onChange={(e) => setSecret(e.target.value)}
+                  disabled={isLoading}
+                  className="bg-secondary border-border text-foreground"
+                />
                 <Button
                   onClick={handleDeposit}
                   disabled={!depositAmount || isLoading}
@@ -85,6 +94,8 @@ export default function DepositSection({
                 >
                   {isLoading ? "..." : "Deposit"}
                 </Button>
+                
+              
               </div>
             </div>
             <p className="text-xs text-muted-foreground">

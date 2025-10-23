@@ -15,6 +15,7 @@ import { type Address, type Hash, type Abi } from 'viem';
 import { config } from "../wagmi"
 import ztomicAbiJson from "../abi/ztomic.json"
 import { type DepositedInitiatorLog } from "./eventTypes";
+import { createSharedSecret } from "../context/createSecret"
 
 
 
@@ -56,8 +57,8 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
   const [counterpartyStatus, setCounterpartyStatus] = useState<"loading" | "found" | "error">("loading")
 
   const [eventLogs_depositInitiator, setEventLogs_depositInitiator] = useState<DepositedInitiatorLog[]>([]);
-    const [eventLogs_depositResponder, setEventLogs_depositResponder] = useState<DepositedInitiatorLog[]>([]);
-    const [eventLogs_withdrawInitiator, setEventLogs_withdrawInitiator] = useState<DepositedInitiatorLog[]>([]);
+  const [eventLogs_depositResponder, setEventLogs_depositResponder] = useState<DepositedInitiatorLog[]>([]);
+  const [eventLogs_withdrawInitiator, setEventLogs_withdrawInitiator] = useState<DepositedInitiatorLog[]>([]);
 
 
 
@@ -69,28 +70,28 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
       address: '0xc045c82615123D371347dDfD9E529e84302BA6fd',
       abi: ztomicAbi,
       eventName: 'deposited_initiator',
-    onLogs(logs) {
-        console.log('New logs!', logs);
+      onLogs(logs) {
+        console.log('New logs!', logs);
 
         // FIX: Explicitly cast the logs to your specific type
-        setEventLogs_depositInitiator(prevLogs => [
+        setEventLogs_depositInitiator(prevLogs => [
           ...prevLogs,
           ...(logs as unknown as DepositedInitiatorLog[])
         ]);
-      },
+      },
     });
 
-     const unwatchDespositResponder = watchContractEvent(config, {
+    const unwatchDespositResponder = watchContractEvent(config, {
       address: '0x09F1d92108AEc66ccFe889A039b0e05245cEB0f4',
       abi: ztomicAbi,
       eventName: 'deposited_responder',
-    onLogs(logs) {
-        console.log('New logs!', logs);
- setEventLogs_depositResponder(prevLogs => [
+      onLogs(logs) {
+        console.log('New logs!', logs);
+        setEventLogs_depositResponder(prevLogs => [
           ...prevLogs,
           ...(logs as unknown as DepositedInitiatorLog[])
         ]);
-      },
+      },
     });
 
 
@@ -98,18 +99,18 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
       address: '0x09F1d92108AEc66ccFe889A039b0e05245cEB0f4',
       abi: ztomicAbi,
       eventName: 'withdraw_initiator',
-    onLogs(logs) {
-        console.log('New logs!', logs);
- setEventLogs_withdrawInitiator(prevLogs => [
+      onLogs(logs) {
+        console.log('New logs!', logs);
+        setEventLogs_withdrawInitiator(prevLogs => [
           ...prevLogs,
           ...(logs as unknown as DepositedInitiatorLog[])
         ]);
-      },
+      },
     });
-    
 
 
-console.log("stored deposit_initiator logs:", eventLogs_depositInitiator);
+
+    console.log("stored deposit_initiator logs:", eventLogs_depositInitiator);
     return () => {
       console.log("Unwatching contract events");
       unwatchDespositInitiator();
@@ -145,7 +146,7 @@ console.log("stored deposit_initiator logs:", eventLogs_depositInitiator);
           console.log("response data", data)
           setCounterpartyIdentity(data)
 
-          console.log("counterparty Identity", counterpartyIdentity)
+
 
           setCounterpartyStatus("found")
         } catch (error) {
@@ -182,12 +183,19 @@ console.log("stored deposit_initiator logs:", eventLogs_depositInitiator);
     })
   }, [order, addEvent])
 
-  const handleDeposit = (amount: string) => {
+  const handleDeposit = (amount: string, secret: string) => {
     if (userRole === "initiator" && counterpartyIdentity) {
       console.log("Creating commitment using counterparty public keys:")
       console.log("Counterparty Key X:", counterpartyIdentity.pubKeyX)
       console.log("Counterparty Key Y:", counterpartyIdentity.pubKeyY)
+      console.log("Your Secret:", secret)
+
+      
+
     }
+    const orderId = order.id
+
+
 
     setIsDepositing(true)
     setTimeout(() => {
@@ -264,10 +272,47 @@ console.log("stored deposit_initiator logs:", eventLogs_depositInitiator);
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-4">
-          <DepositSection title={userRole === "initiator" ? "Your Deposit" : `${order.initiator}'s Deposit`} token={order.fromToken} amount={order.amount} isUserDeposit={userRole === "initiator"} hasDeposited={userADeposited} onDeposit={handleDeposit} isLoading={isDepositing} counterpartyName={order.initiator} orderId={order.id} />
-          <DepositSection title={userRole === "counterparty" ? "Your Deposit" : `${getCounterpartyName()}'s Deposit`} token={order.toToken} amount={order.amount} isUserDeposit={userRole === "counterparty"} hasDeposited={userBDeposited} onDeposit={handleDeposit} isLoading={isDepositing} counterpartyName={getCounterpartyName()} orderId={order.id} />
-          <DepositTracker swapId={order.id} userAddress={userRole === "initiator" ? order.initiatorAddress : userIdentity.address} counterpartyAddress={counterpartyIdentity?.userName || ""} initiatorToken={order.fromToken} counterpartyToken={order.toToken} />
+
+
+          {userRole === "initiator" && (
+            <DepositSection
+              title="Your Deposit"
+              token={order.fromToken}
+              amount={order.amount}
+              isUserDeposit={true}
+              hasDeposited={userADeposited}
+              onDeposit={handleDeposit}
+              isLoading={isDepositing}
+              counterpartyName={order.initiator}
+              orderId={order.id}
+            />
+          )}
+
+
+          {userRole === "counterparty" && (
+            <DepositSection
+              title="Your Deposit"
+              token={order.toToken}
+              amount={order.amount}
+              isUserDeposit={true}
+              hasDeposited={userBDeposited}
+              onDeposit={handleDeposit}
+              isLoading={isDepositing}
+              counterpartyName={getCounterpartyName()}
+              orderId={order.id}
+            />
+          )}
+
+      
+          <DepositTracker
+            swapId={order.id}
+            userAddress={userRole === "initiator" ? order.initiatorAddress : userIdentity.address}
+            counterpartyAddress={counterpartyIdentity?.userName || ""}
+            initiatorToken={order.fromToken}
+            counterpartyToken={order.toToken}
+          />
         </div>
+
 
         <div className="lg:col-span-1 space-y-4">
           <MessageBoard messages={messages} onSendMessage={handleSendMessage} userIdentity={userIdentity} swapStatus={swapStatus} />
