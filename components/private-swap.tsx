@@ -4,13 +4,14 @@ import { useState, useEffect } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import DepositSection from "@/components/deposit-section"
+import DepositSectionCounterparty from "@/components/deposit-section-conterparty"
 import MessageBoard, { type SwapMessage } from "@/components/message-board"
 import DepositTracker from "@/components/deposit-tracker"
 import EventLog from "@/components/event-log"
 import { useEventMonitor, type DepositRecord } from "@/components/event-monitor"
 // import { UserIdentity } from "@/context/UserIdentityContext"
 import { useIntentStore } from "@/components/intent-store"
-import { watchContractEvent } from "@wagmi/core"
+import { watchContractEvent, writeContract } from "@wagmi/core"
 import { type Address, type Hash, type Abi, keccak256, stringToBytes } from 'viem';
 import { config } from "../wagmi"
 import ztomicAbiJson from "../abi/ztomic.json"
@@ -61,10 +62,39 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
   const [eventLogs_depositResponder, setEventLogs_depositResponder] = useState<DepositedInitiatorLog[]>([]);
   const [eventLogs_withdrawInitiator, setEventLogs_withdrawInitiator] = useState<DepositedInitiatorLog[]>([]);
 
+  const [depositTx, setDepositTx] = useState<any>(null);
+  const [hashlock_responder, setHashlock_responder] = useState<string | null>("");
 
 
   const addDeposit = useEventMonitor((state) => state.addDeposit)
   const addEvent = useEventMonitor((state) => state.addEvent)
+
+  useEffect(() => {
+    decodeCounterPartyDepositLogs();
+  }, [eventLogs_depositInitiator])
+
+  async function decodeCounterPartyDepositLogs() {
+
+    if (userRole === "counterparty") {
+      eventLogs_depositInitiator.forEach((log) => {
+        const decoded = {
+          oprder_id_hash: log.args._order_id_hash,
+          commitment: log.args._commitment,
+          hashlock: log.args.hashlock,
+          txHash: log.transactionHash,
+          blockNumber: log.blockNumber,
+          leafIndex: log.args.leafIndex
+        };
+
+        if (log.args._order_id_hash === keccak256(stringToBytes(order.id)))
+          setHashlock_responder(log.args.hashlock);
+
+        console.log("Decoded Counterparty Deposit Log:", decoded);
+      }
+      )
+
+    }
+  }
 
   useEffect(() => {
     const unwatchDespositInitiator = watchContractEvent(config, {
@@ -83,7 +113,7 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
     });
 
     const unwatchDespositResponder = watchContractEvent(config, {
-      address: '0x09F1d92108AEc66ccFe889A039b0e05245cEB0f4',
+      address: '0xc045c82615123D371347dDfD9E529e84302BA6fd',
       abi: ztomicAbi,
       eventName: 'deposited_responder',
       onLogs(logs) {
@@ -97,7 +127,7 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
 
 
     const unwatchWithdrawInitiator = watchContractEvent(config, {
-      address: '0x09F1d92108AEc66ccFe889A039b0e05245cEB0f4',
+      address: '0xc045c82615123D371347dDfD9E529e84302BA6fd',
       abi: ztomicAbi,
       eventName: 'withdraw_initiator',
       onLogs(logs) {
@@ -184,7 +214,7 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
     })
   }, [order, addEvent])
 
-  const handleDeposit = async(amount: string, secret: string, hashlockNonce: string) => {
+  const handleDeposit = async (amount: string, secret: string, hashlockNonce: string) => {
     if (userRole === "initiator" && counterpartyIdentity) {
       console.log("Creating commitment using counterparty public keys:")
       console.log("Counterparty Key X:", counterpartyIdentity.pubKeyX)
@@ -193,23 +223,31 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
 
       const orderIdHash = keccak256(stringToBytes(order.id));
       console.log("Order ID Hash:", orderIdHash)
-       console.log("generating Commitment A  for Initiator.")
+      console.log("generating Commitment A  for Initiator.")
       const commitmentA = await generateCommitmentA([counterpartyIdentity.pubKeyX, counterpartyIdentity.pubKeyY], secret, hashlockNonce);
       console.log("commitmentA created:", commitmentA)
 
+      const depositTx = await writeContract(config, {
+        abi: ztomicAbi,
+        address: '0xc045c82615123D371347dDfD9E529e84302BA6fd' as Address,
+
+        functionName: 'deposit_initiator',
+        args: [commitmentA.commitment, orderIdHash, commitmentA.hashlock, false, "0x0af700A3026adFddC10f7Aa8Ba2419e8503592f7"]
+
+
+      })
+      console.log("Deposit transaction sent:", depositTx);
+      setDepositTx(depositTx);
+
+      setIsDepositing(true)
     }
-
-
-
-
-    setIsDepositing(true)
     setTimeout(() => {
       const depositId = createId()
-      const txHash = `0x${Math.random().toString(16).substring(2, 66)}`
+      const txHash = depositTx
       const token = userRole === "initiator" ? order.fromToken : order.toToken
       const user = userRole === "initiator" ? order.initiatorAddress : userIdentity.address
 
-      const depositRecord: DepositRecord = { id: depositId, swapId: order.id, user, token, amount: Number.parseFloat(amount), txHash, timestamp: new Date(), status: "pending" }
+      const depositRecord: DepositRecord = { id: depositId, swapId: order.id, user, token, amount: Number.parseFloat(amount), txHash, timestamp: new Date(), status: "confirmed" }
       addDeposit(depositRecord)
       addEvent({ id: createId(), swapId: order.id, type: "deposit", user, amount: Number.parseFloat(amount), token, txHash, blockNumber: Math.floor(Math.random() * 1000000) + 18000000, timestamp: new Date(), status: "pending" })
 
@@ -233,6 +271,7 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
         }
       }, 2000)
     }, 800)
+
   }
 
   const handleSendMessage = (text: string) => {
@@ -272,6 +311,12 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
             <p className="text-xs text-muted-foreground mb-1">Order Id</p>
             <p className="text-sm font-medium text-foreground">{order.id}</p>
           </div>
+          {userRole === "counterparty" &&
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Initiator's Deposit Status</p>
+              <p className="text-sm font-medium text-foreground">{hashlock_responder ? `🟢` : `🔴`}</p>
+            </div>
+          }
         </div>
       </Card>
 
@@ -295,7 +340,7 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
 
 
           {userRole === "counterparty" && (
-            <DepositSection
+            <DepositSectionCounterparty
               title="Your Deposit"
               token={order.toToken}
               amount={order.amount}
