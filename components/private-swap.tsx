@@ -10,6 +10,17 @@ import EventLog from "@/components/event-log"
 import { useEventMonitor, type DepositRecord } from "@/components/event-monitor"
 // import { UserIdentity } from "@/context/UserIdentityContext"
 import { useIntentStore } from "@/components/intent-store"
+import { watchContractEvent } from "@wagmi/core"
+import { type Address, type Hash, type Abi } from 'viem';
+import { config } from "../wagmi"
+import ztomicAbiJson from "../abi/ztomic.json"
+import { type DepositedInitiatorLog } from "./eventTypes";
+
+
+
+const ztomicAbi = ztomicAbiJson.abi as Abi;
+
+// unwatch()
 
 interface PrivateSwapProps {
   order: any
@@ -44,8 +55,68 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
   const [counterpartyIdentity, setCounterpartyIdentity] = useState<CounterpartyIdentity | null>(null)
   const [counterpartyStatus, setCounterpartyStatus] = useState<"loading" | "found" | "error">("loading")
 
+  const [eventLogs_depositInitiator, setEventLogs_depositInitiator] = useState<DepositedInitiatorLog[]>([]);
+    const [eventLogs_depositResponder, setEventLogs_depositResponder] = useState<DepositedInitiatorLog[]>([]);
+    const [eventLogs_withdrawInitiator, setEventLogs_withdrawInitiator] = useState<DepositedInitiatorLog[]>([]);
+
+
+
   const addDeposit = useEventMonitor((state) => state.addDeposit)
   const addEvent = useEventMonitor((state) => state.addEvent)
+
+  useEffect(() => {
+    const unwatchDespositInitiator = watchContractEvent(config, {
+      address: '0xc045c82615123D371347dDfD9E529e84302BA6fd',
+      abi: ztomicAbi,
+      eventName: 'deposited_initiator',
+    onLogs(logs) {
+        console.log('New logs!', logs);
+
+        // FIX: Explicitly cast the logs to your specific type
+        setEventLogs_depositInitiator(prevLogs => [
+          ...prevLogs,
+          ...(logs as unknown as DepositedInitiatorLog[])
+        ]);
+      },
+    });
+
+     const unwatchDespositResponder = watchContractEvent(config, {
+      address: '0x09F1d92108AEc66ccFe889A039b0e05245cEB0f4',
+      abi: ztomicAbi,
+      eventName: 'deposited_responder',
+    onLogs(logs) {
+        console.log('New logs!', logs);
+ setEventLogs_depositResponder(prevLogs => [
+          ...prevLogs,
+          ...(logs as unknown as DepositedInitiatorLog[])
+        ]);
+      },
+    });
+
+
+    const unwatchWithdrawInitiator = watchContractEvent(config, {
+      address: '0x09F1d92108AEc66ccFe889A039b0e05245cEB0f4',
+      abi: ztomicAbi,
+      eventName: 'withdraw_initiator',
+    onLogs(logs) {
+        console.log('New logs!', logs);
+ setEventLogs_withdrawInitiator(prevLogs => [
+          ...prevLogs,
+          ...(logs as unknown as DepositedInitiatorLog[])
+        ]);
+      },
+    });
+    
+
+
+console.log("stored deposit_initiator logs:", eventLogs_depositInitiator);
+    return () => {
+      console.log("Unwatching contract events");
+      unwatchDespositInitiator();
+      unwatchDespositResponder();
+      unwatchWithdrawInitiator();
+    };
+  }, [eventLogs_depositInitiator]);
 
   useEffect(() => {
     const currentOrder = intents.find((i) => i.id === order.id)
@@ -55,6 +126,8 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
       setCounterpartyStatus("error")
       return
     }
+
+
 
     // --- LOGIC FIX: Correctly identify the counterparty for BOTH roles ---
     const counterpartyName = currentOrder.selectedCounterparty;
