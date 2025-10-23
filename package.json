@@ -1,5 +1,5 @@
 {
-  "name": "Ztomic-Swap",
+  "name": "Ztomi_Swap",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -9,6 +9,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@aztec/bb.js": "^2.0.3",
     "@hookform/resolvers": "^3.10.0",
     "@radix-ui/react-accordion": "1.2.2",
     "@radix-ui/react-alert-dialog": "1.1.4",

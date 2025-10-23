@@ -11,11 +11,12 @@ import { useEventMonitor, type DepositRecord } from "@/components/event-monitor"
 // import { UserIdentity } from "@/context/UserIdentityContext"
 import { useIntentStore } from "@/components/intent-store"
 import { watchContractEvent } from "@wagmi/core"
-import { type Address, type Hash, type Abi } from 'viem';
+import { type Address, type Hash, type Abi, keccak256, stringToBytes } from 'viem';
 import { config } from "../wagmi"
 import ztomicAbiJson from "../abi/ztomic.json"
 import { type DepositedInitiatorLog } from "./eventTypes";
-import { createSharedSecret } from "../context/createSecret"
+// import { createSharedSecret } from "../context/createSecret"
+import { generateCommitmentA } from "@/context/createCommitmentA"
 
 
 
@@ -183,17 +184,21 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
     })
   }, [order, addEvent])
 
-  const handleDeposit = (amount: string, secret: string) => {
+  const handleDeposit = async(amount: string, secret: string, hashlockNonce: string) => {
     if (userRole === "initiator" && counterpartyIdentity) {
       console.log("Creating commitment using counterparty public keys:")
       console.log("Counterparty Key X:", counterpartyIdentity.pubKeyX)
       console.log("Counterparty Key Y:", counterpartyIdentity.pubKeyY)
       console.log("Your Secret:", secret)
 
-      
+      const orderIdHash = keccak256(stringToBytes(order.id));
+      console.log("Order ID Hash:", orderIdHash)
+       console.log("generating Commitment A  for Initiator.")
+      const commitmentA = await generateCommitmentA([counterpartyIdentity.pubKeyX, counterpartyIdentity.pubKeyY], secret, hashlockNonce);
+      console.log("commitmentA created:", commitmentA)
 
     }
-    const orderId = order.id
+
 
 
 
@@ -303,7 +308,7 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
             />
           )}
 
-      
+
           <DepositTracker
             swapId={order.id}
             userAddress={userRole === "initiator" ? order.initiatorAddress : userIdentity.address}

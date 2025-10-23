@@ -11,7 +11,7 @@ interface DepositSectionProps {
   amount: number
   isUserDeposit: boolean
   hasDeposited: boolean
-  onDeposit: (amount: string, secret: string) => void
+  onDeposit: (amount: string, secret: string, nonce: string) => void
   isLoading?: boolean
   counterpartyName?: string
   orderId?: string
@@ -30,10 +30,11 @@ export default function DepositSection({
 }: DepositSectionProps) {
   const [depositAmount, setDepositAmount] = useState("")
   const [secret, setSecret] = useState("");
-
+  const [nonce, setNonce] = useState("");
+  
   const handleDeposit = () => {
     if (depositAmount) {
-      onDeposit(depositAmount, secret)
+      onDeposit(depositAmount, secret, nonce)
       setDepositAmount("")
     }
   }
@@ -84,6 +85,14 @@ export default function DepositSection({
                   placeholder={`Enter Secret Key`}
                   value={secret}
                   onChange={(e) => setSecret(e.target.value)}
+                  disabled={isLoading}
+                  className="bg-secondary border-border text-foreground"
+                />
+                   <Input
+                  type="text"
+                  placeholder={`Enter secret for hashlock`}
+                  value={nonce}
+                  onChange={(e) => setNonce(e.target.value)}
                   disabled={isLoading}
                   className="bg-secondary border-border text-foreground"
                 />
