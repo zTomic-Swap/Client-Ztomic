@@ -51,7 +51,8 @@ export async function createProofA(
 
   // Initialize Barretenberg
   const bb = await Barretenberg.new();
-
+  
+  console.log("order id in proof generation", orderId);
   try {
     // --- 1. Convert Inputs ---
     const alice_sk = BigInt(secretKeyParty);
@@ -85,6 +86,8 @@ export async function createProofA(
       nonce_fr,
     ]);
 
+    const derived_commitment = await bb.poseidon2Hash([reconstructed_hash_lock_fr, shared_secret_x_fr])
+
     // Compute nullifier (shared_secret_x, Bob_PK_x, order_id)
     const computed_nullifier_fr = await bb.poseidon2Hash([
       shared_secret_x_fr,
@@ -92,16 +95,18 @@ export async function createProofA(
       order_id_fr,
     ]);
 
-    // Derive commitment (hash_lock, shared_secret_x)
-    const derived_commitment_fr = await bb.poseidon2Hash([
-      reconstructed_hash_lock_fr,
-      shared_secret_x_fr,
-    ]);
+    // const hashlock_hash = await bb.poseidon2Hash([reconstructed_hash_lock_fr]);
 
-    console.log("derived_commitment_fr:", derived_commitment_fr.toString());
+    // Derive commitment (hash_lock, shared_secret_x)
+    // const derived_commitment_fr = await bb.poseidon2Hash([
+    //   hashlock_hash,
+    //   shared_secret_x_fr,
+    // ]);
+
+    // console.log("derived_commitment_fr:", derived_commitment_fr.toString());
 
     // --- 4. Get Merkle Proof ---
-    const commitmentIndex = tree.getIndex(derived_commitment_fr.toString());
+    const commitmentIndex = tree.getIndex(derived_commitment.toString());
     if (commitmentIndex === -1) {
       throw new Error("Generated commitment not found in the Merkle tree leaves.");
     }
@@ -109,6 +114,10 @@ export async function createProofA(
     const merkleRoot = tree.root();
     console.log("Reconstructed Merkle Root:", merkleRoot.toString());
     const merkleProof = tree.proof(commitmentIndex);
+    console.log("merkle proof root ", merkleProof.root.toString())
+
+    // console.log
+
 
     // --- 5. Prepare Noir Inputs ---
     const noir = new Noir(circuit);
@@ -125,7 +134,7 @@ export async function createProofA(
       nullifier_hash: computed_nullifier_fr.toString(),
       root: merkleProof.root.toString(),
     };
-
+    console.log("inputs for proof ----", input);
     // --- 6. Generate Proof ---
     const { witness } = await noir.execute(input);
 

@@ -22,7 +22,7 @@ import WithdrawSectionCounterparty from "@/components/withdraw-section-counterpa
 import { generateCommitmentA } from "@/context/createCommitmentA"
 import { generateCommitmentB } from "@/context/createCommitmentB"
 import { createProofA } from "@/context/createProofA";
-
+import { deriveCommitmentB } from "@/context/reconstructBCommitmentForA"
 
 
 const ztomicAbi = ztomicAbiJson.abi as Abi;
@@ -75,6 +75,10 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
   const [isWithdrawing, setIsWithdrawing] = useState(false)
   const [ccipMessageId, setCcipMessageId] = useState<Hash | null>(null);
 
+  const [hashlock_initiator, setHashlock_initiator] = useState<string | null>("");
+  const [secretKey_initiator, setSecretKey_initiator] = useState<string | null>("");
+  const [commitment_counterparty, setCommitment_counterparty] = useState<string | null>("");  
+
 
   const addDeposit = useEventMonitor((state) => state.addDeposit)
   const addEvent = useEventMonitor((state) => state.addEvent)
@@ -82,6 +86,8 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
   useEffect(() => {
     decodeCounterPartyDepositLogs();
   }, [eventLogs_depositInitiator])
+
+  
 
   async function decodeCounterPartyDepositLogs() {
 
@@ -107,11 +113,34 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
       )
 
     }
+
+    if( userRole === "initiator") {
+      eventLogs_depositResponder.forEach(async(log) => {
+        const decoded = {
+          oprder_id_hash: log.args._order_id_hash,
+          commitment: log.args._commitment,
+          hashlock: log.args.hashlock,
+          txHash: log.transactionHash,
+          blockNumber: log.blockNumber,
+          leafIndex: log.args.leafIndex,
+          ccipMessageId: log.args.ccipMessageId
+        };
+        const derivedCommitmentFromLogs = await deriveCommitmentB([counterpartyIdentity!.pubKeyX, counterpartyIdentity!.pubKeyY], secretKey_initiator!, hashlock_initiator! )
+        if( decoded.commitment === derivedCommitmentFromLogs.commitment) {
+          setCommitment_counterparty(decoded.commitment);
+        console.log("Decoded responsed Deposit Log:", decoded);
+
+      }
+    }
+    )
+      
   }
+
+}
 
   useEffect(() => {
     const unwatchDespositInitiator = watchContractEvent(config, {
-      address: '0x033573969fecA28C6754546b4a0B64535Bce0e98',
+      address: '0x63DFD07e625736bd20C62BD882e5D3475d8E0297',
       abi: ztomicAbi,
       eventName: 'deposited',
       onLogs(logs) {
@@ -126,7 +155,7 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
     });
 
     const unwatchDespositResponder = watchContractEvent(config, {
-      address: '0x033573969fecA28C6754546b4a0B64535Bce0e98',
+      address: '0x63DFD07e625736bd20C62BD882e5D3475d8E0297',
       abi: ztomicAbi,
       eventName: 'deposited',
       onLogs(logs) {
@@ -140,7 +169,7 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
 
 
     const unwatchWithdrawInitiator = watchContractEvent(config, {
-      address: '0x033573969fecA28C6754546b4a0B64535Bce0e98',
+      address: '0x63DFD07e625736bd20C62BD882e5D3475d8E0297',
       abi: ztomicAbi,
       eventName: 'withdraw_initiator',
       onLogs(logs) {
@@ -255,10 +284,11 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
       console.log("generating Commitment A  for Initiator.")
       const commitmentA = await generateCommitmentA([counterpartyIdentity.pubKeyX, counterpartyIdentity.pubKeyY], secret, hashlockNonce);
       console.log("commitmentA created:", commitmentA)
-
+      setHashlock_initiator(commitmentA.hashlock);
+      setSecretKey_initiator(secret);
       const depositTx = await writeContract(config, {
         abi: ztomicAbi,
-        address: '0x033573969fecA28C6754546b4a0B64535Bce0e98' as Address,
+        address: '0x63DFD07e625736bd20C62BD882e5D3475d8E0297' as Address,
 
         functionName: 'deposit_initiator',
         args: [commitmentA.commitment, orderIdHash, commitmentA.hashlock, false, "0x0af700A3026adFddC10f7Aa8Ba2419e8503592f7"]
@@ -266,6 +296,7 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
 
       })
       console.log("Deposit transaction sent:", depositTx);
+
       setDepositTx(depositTx);
 
       setIsDepositing(true)
@@ -309,7 +340,7 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
 
       const depositTx = await writeContract(config, {
         abi: ztomicAbi,
-        address: '0x033573969fecA28C6754546b4a0B64535Bce0e98' as Address,
+        address: '0x63DFD07e625736bd20C62BD882e5D3475d8E0297' as Address,
         functionName: 'deposit_responder',
         args: [commitmentB.commitment, false, "0x0af700A3026adFddC10f7Aa8Ba2419e8503592f7"]
       })
@@ -367,7 +398,7 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
     try {
       setIsWithdrawing(true)
       if (!counterpartyIdentity || !fetchedLeaves) return
-      const { proof, publicInputs } = await createProofA(secretKey, [counterpartyIdentity?.pubKeyX, counterpartyIdentity?.pubKeyY], order.id, hashlockNonce, fetchedLeaves);
+      const { proof, publicInputs } = await createProofA(secretKey, [counterpartyIdentity?.pubKeyX, counterpartyIdentity?.pubKeyY], keccak256(order.id), hashlockNonce, fetchedLeaves);
       console.log("Generated proof for Initiator withdrawal:", proof, publicInputs)
       // proof should be bytes; assume the UI provides hex string (0x...)
       const args = [proof, publicInputs[1], publicInputs[2], publicInputs[0], keccak256(stringToBytes(orderIdHash)), recipient];
@@ -456,6 +487,12 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
               <p className="text-sm font-medium text-foreground">{hashlock_responder ? `🟢` : `🔴`}</p>
             </div>
           }
+          {userRole === "initiator" &&
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Responder's Deposit Status</p>
+              <p className="text-sm font-medium text-foreground">{commitment_counterparty ? `🟢` : `🔴`}</p>
+            </div>
+          }
         </div>
       </Card>
 
@@ -494,7 +531,7 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
           )}
 
           {/* Withdraw sections: show after deposits or when appropriate */}
-          {userRole === "initiator" && (
+          { commitment_counterparty && userRole === "initiator" && (
             <div className="mt-4">
               <WithdrawSection
                 title="Withdraw (Initiator)"

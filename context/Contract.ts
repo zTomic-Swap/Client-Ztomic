@@ -8,7 +8,7 @@ const ztomicAbi = (ztomicJson as any).abi ?? ztomicJson;
 const BurnMintERC20Abi = (BurnMintERC20Json as any).abi ?? BurnMintERC20Json;
 
 // Contract Addresses
-const ztomic_USDCtoUSDT_sepolia = "0x033573969fecA28C6754546b4a0B64535Bce0e98";
+const ztomic_USDCtoUSDT_sepolia = "0x63DFD07e625736bd20C62BD882e5D3475d8E0297";
 const ztomic_USDTtoUSDC_sepolia = "0x09F1d92108AEc66ccFe889A039b0e05245cEB0f4";
 const ztomic_USDCtoUSDT_hedera = "0x38378c353F71Fb1C80adBF604Db0F752373f141E";
 const ztomic_USDTtoUSDC_hedera = "0x9aB490fB355FFA9ea3194fb58CEa7A6D7a663f52";
