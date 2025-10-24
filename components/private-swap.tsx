@@ -16,6 +16,8 @@ import { type Address, type Hash, type Abi, keccak256, stringToBytes } from 'vie
 import { config } from "../wagmi"
 import ztomicAbiJson from "../abi/ztomic.json"
 import { type DepositedInitiatorLog } from "./eventTypes";
+import WithdrawSection from "@/components/withdraw-section"
+import WithdrawSectionCounterparty from "@/components/withdraw-section-counterparty"
 // import { createSharedSecret } from "../context/createSecret"
 import { generateCommitmentA } from "@/context/createCommitmentA"
 import { generateCommitmentB } from "@/context/createCommitmentB"
@@ -66,6 +68,11 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
 
   const [depositTx, setDepositTx] = useState<any>(null);
   const [hashlock_responder, setHashlock_responder] = useState<string | null>("");
+  const [withdrawTx, setWithdrawTx] = useState<any>(null);
+  const [userAWithdrawn, setUserAWithdrawn] = useState(false)
+  const [userBWithdrawn, setUserBWithdrawn] = useState(false)
+  const [isWithdrawing, setIsWithdrawing] = useState(false)
+  const [ccipMessageId, setCcipMessageId] = useState<Hash | null>(null);
 
 
   const addDeposit = useEventMonitor((state) => state.addDeposit)
@@ -85,11 +92,14 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
           hashlock: log.args.hashlock,
           txHash: log.transactionHash,
           blockNumber: log.blockNumber,
-          leafIndex: log.args.leafIndex
+          leafIndex: log.args.leafIndex,
+          ccipMessageId: log.args.ccipMessageId
         };
 
-        if (log.args._order_id_hash === keccak256(stringToBytes(order.id)))
+        if (log.args._order_id_hash === keccak256(stringToBytes(order.id))){
           setHashlock_responder(log.args.hashlock);
+        setCcipMessageId(log.args.ccipMessageId);
+        }
 
         console.log("Decoded Counterparty Deposit Log:", decoded);
       }
@@ -100,9 +110,9 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
 
   useEffect(() => {
     const unwatchDespositInitiator = watchContractEvent(config, {
-      address: '0xc045c82615123D371347dDfD9E529e84302BA6fd',
+      address: '0x033573969fecA28C6754546b4a0B64535Bce0e98',
       abi: ztomicAbi,
-      eventName: 'deposited_initiator',
+      eventName: 'deposited',
       onLogs(logs) {
         console.log('New logs!', logs);
 
@@ -115,9 +125,9 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
     });
 
     const unwatchDespositResponder = watchContractEvent(config, {
-      address: '0xc045c82615123D371347dDfD9E529e84302BA6fd',
+      address: '0x033573969fecA28C6754546b4a0B64535Bce0e98',
       abi: ztomicAbi,
-      eventName: 'deposited_responder',
+      eventName: 'deposited',
       onLogs(logs) {
         console.log('New logs!', logs);
         setEventLogs_depositResponder(prevLogs => [
@@ -129,7 +139,7 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
 
 
     const unwatchWithdrawInitiator = watchContractEvent(config, {
-      address: '0xc045c82615123D371347dDfD9E529e84302BA6fd',
+      address: '0x033573969fecA28C6754546b4a0B64535Bce0e98',
       abi: ztomicAbi,
       eventName: 'withdraw_initiator',
       onLogs(logs) {
@@ -247,7 +257,7 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
 
       const depositTx = await writeContract(config, {
         abi: ztomicAbi,
-        address: '0xc045c82615123D371347dDfD9E529e84302BA6fd' as Address,
+        address: '0x033573969fecA28C6754546b4a0B64535Bce0e98' as Address,
 
         functionName: 'deposit_initiator',
         args: [commitmentA.commitment, orderIdHash, commitmentA.hashlock, false, "0x0af700A3026adFddC10f7Aa8Ba2419e8503592f7"]
@@ -298,7 +308,7 @@ if(hashlock_responder){
 
     const depositTx = await writeContract(config, {
       abi: ztomicAbi,
-      address: '0xc045c82615123D371347dDfD9E529e84302BA6fd' as Address,
+      address: '0x033573969fecA28C6754546b4a0B64535Bce0e98' as Address,
       functionName: 'deposit_responder',
       args: [commitmentB.commitment, false, "0x0af700A3026adFddC10f7Aa8Ba2419e8503592f7"]
     })
@@ -343,6 +353,67 @@ if(hashlock_responder){
     const newMessage: SwapMessage = { id: messageCount + 1, type: "message", sender: userIdentity.identity, timestamp: new Date(), message: text, status: "success" }
     setMessages((prev) => [...prev, newMessage])
     setMessageCount((prev) => prev + 1)
+  }
+
+  // --- Withdraw handlers ---
+  const handleWithdrawInitiator = async (
+    proof: string,
+    nullifierHash: string,
+    root: string,
+    hashlockNonce: string,
+    orderIdHash: string,
+    recipient?: string
+  ) => {
+    try {
+      setIsWithdrawing(true)
+      // proof should be bytes; assume the UI provides hex string (0x...)
+      const args = [proof, nullifierHash, root, hashlockNonce || "0x0", orderIdHash || stringToBytes(order.id), recipient || userIdentity.address]
+      const tx = await writeContract(config, {
+        abi: ztomicAbi,
+        address: '0x033573969fecA28C6754546b4a0B64535Bce0e98' as Address,
+        functionName: 'withdraw_initiator',
+        args: args as any,
+      })
+      console.log('withdraw_initiator tx:', tx)
+      setWithdrawTx(tx)
+      // update UI
+      setUserAWithdrawn(true)
+  addEvent({ id: createId(), swapId: order.id, type: 'withdrawal', user: userIdentity.address, amount: order.amount, token: order.fromToken, txHash: tx as any, blockNumber: Math.floor(Math.random() * 1000000) + 18000000, timestamp: new Date(), status: 'pending' })
+      setMessages((prev) => [...prev, { id: messageCount + 1, type: 'event', timestamp: new Date(), message: 'Initiator withdrawal submitted', status: 'pending' }])
+      setMessageCount((prev) => prev + 1)
+    } catch (err) {
+      console.error('Initiator withdraw failed', err)
+    } finally {
+      setIsWithdrawing(false)
+    }
+  }
+
+  const handleWithdrawResponder = async (
+    proof: string,
+    nullifierHash: string,
+    root: string,
+    recipient?: string
+  ) => {
+    try {
+      setIsWithdrawing(true)
+      const args = [proof, nullifierHash, root, recipient || userIdentity.address]
+      const tx = await writeContract(config, {
+        abi: ztomicAbi,
+        address: '0x033573969fecA28C6754546b4a0B64535Bce0e98' as Address,
+        functionName: 'withdraw_responder',
+        args: args as any,
+      })
+      console.log('withdraw_responder tx:', tx)
+      setWithdrawTx(tx)
+      setUserBWithdrawn(true)
+  addEvent({ id: createId(), swapId: order.id, type: 'withdrawal', user: userIdentity.address, amount: order.amount, token: order.toToken, txHash: tx as any, blockNumber: Math.floor(Math.random() * 1000000) + 18000000, timestamp: new Date(), status: 'pending' })
+      setMessages((prev) => [...prev, { id: messageCount + 1, type: 'event', timestamp: new Date(), message: 'Responder withdrawal submitted', status: 'pending' }])
+      setMessageCount((prev) => prev + 1)
+    } catch (err) {
+      console.error('Responder withdraw failed', err)
+    } finally {
+      setIsWithdrawing(false)
+    }
   }
 
   const getCounterpartyName = () => {
@@ -417,6 +488,41 @@ if(hashlock_responder){
               orderId={order.id}
               hashlock={hashlock_responder}
             />
+          )}
+
+          {/* Withdraw sections: show after deposits or when appropriate */}
+          {userRole === "initiator" && (
+            <div className="mt-4">
+              <WithdrawSection
+                title="Withdraw (Initiator)"
+                token={order.fromToken}
+                amount={order.amount}
+                isUserWithdraw={true}
+                hasWithdrawn={userAWithdrawn}
+                onWithdraw={handleWithdrawInitiator}
+                isLoading={isWithdrawing}
+                counterpartyName={getCounterpartyName()}
+                orderId={order.id}
+                recipient={userIdentity.address}
+              />
+            </div>
+          )}
+
+          {userRole === "counterparty" && (
+            <div className="mt-4">
+              <WithdrawSectionCounterparty
+                title="Withdraw (Responder)"
+                token={order.toToken}
+                amount={order.amount}
+                isUserWithdraw={true}
+                hasWithdrawn={userBWithdrawn}
+                onWithdraw={handleWithdrawResponder}
+                isLoading={isWithdrawing}
+                counterpartyName={getCounterpartyName()}
+                orderId={order.id}
+                recipient={userIdentity.address}
+              />
+            </div>
           )}
 
 

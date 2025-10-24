@@ -25,18 +25,18 @@ export const fetchHistoricalEvents = async () => {
     // e.g., await ztomicContract.queryFilter('EventName', fromBlock, toBlock);
     // Here we query all events from the beginning.
 
-    console.log("Fetching 'deposited_initiator' events...");
-    const depositInitiatorEvents = await ztomicContract.queryFilter("deposited_initiator", 9469111, 
+    console.log("Fetching 'deposited' events...");
+    const depositInitiatorEvents = await ztomicContract.queryFilter("deposited", 9469111, 
 9469666);
-    console.log(`Found ${depositInitiatorEvents.length} deposited_initiator events.`);
+    console.log(`Found ${depositInitiatorEvents.length} deposited events.`);
 
     console.log("Fetching 'withdrawal_initiator' events...");
     const withdrawInitiatorEvents = await ztomicContract.queryFilter("withdrawal_initiator");
     console.log(`Found ${withdrawInitiatorEvents.length} withdrawal_initiator events.`);
 
-    console.log("Fetching 'deposited_responder' events...");
-    const depositResponderEvents = await ztomicContract.queryFilter("deposited_responder");
-    console.log(`Found ${depositResponderEvents.length} deposited_responder events.`);
+    console.log("Fetching 'deposited' events...");
+    const depositResponderEvents = await ztomicContract.queryFilter("deposited");
+    console.log(`Found ${depositResponderEvents.length} deposited events.`);
 
     console.log("Fetching 'withdrawal_responder' events...");
     const withdrawResponderEvents = await ztomicContract.queryFilter("withdrawal_responder");

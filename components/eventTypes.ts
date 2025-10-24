@@ -4,7 +4,8 @@ type DepositedInitiatorArgs = {
   _commitment: Hash;       // bytes32
   _order_id_hash: Hash;    // bytes32
   leafIndex: bigint;       // uint32 (represented as bigint by viem/wagmi)
-  hashlock: Hash;          // bytes32
+  hashlock: Hash;
+   ccipMessageId: Hash;         // bytes32
 };
 
 export type DepositedInitiatorLog = {
