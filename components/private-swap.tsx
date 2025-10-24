@@ -18,6 +18,7 @@ import ztomicAbiJson from "../abi/ztomic.json"
 import { type DepositedInitiatorLog } from "./eventTypes";
 // import { createSharedSecret } from "../context/createSecret"
 import { generateCommitmentA } from "@/context/createCommitmentA"
+import { generateCommitmentB } from "@/context/createCommitmentB"
 
 
 
@@ -55,6 +56,7 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
   const [messageCount, setMessageCount] = useState(0)
 
   const intents = useIntentStore((state) => state.intents)
+  const [initiatorIdentity, setInitiatorIdentity] = useState<CounterpartyIdentity | null>(null)
   const [counterpartyIdentity, setCounterpartyIdentity] = useState<CounterpartyIdentity | null>(null)
   const [counterpartyStatus, setCounterpartyStatus] = useState<"loading" | "found" | "error">("loading")
 
@@ -163,6 +165,21 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
 
     // --- LOGIC FIX: Correctly identify the counterparty for BOTH roles ---
     const counterpartyName = currentOrder.selectedCounterparty;
+    const initiatorName = currentOrder.initiator;
+
+    const fetchInitiatorData = async () => {
+      try {
+        const response = await fetch(`/api/users/${encodeURIComponent(initiatorName)}`);
+        if (!response.ok) {
+          throw new Error("Initiator not found.")
+        }
+        const data: CounterpartyIdentity = await response.json()
+        console.log("Initiator response data", data)
+        setInitiatorIdentity(data)
+      } catch (error) {
+        console.error("Error fetching initiator:", error)
+      }
+    }
 
     if (counterpartyName) {
       setCounterpartyStatus("loading")
@@ -185,6 +202,7 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
           setCounterpartyStatus("error")
         }
       }
+      fetchInitiatorData();
       fetchCounterpartyData()
     } else {
       console.error("Counterparty name is missing from the order object.")
@@ -274,6 +292,53 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
 
   }
 
+  const handleDepositCounterparty = async (amount: string, secret: string, hashlock: string) => {
+if(hashlock_responder){
+    const commitmentB = await generateCommitmentB([initiatorIdentity!.pubKeyX, initiatorIdentity!.pubKeyY], secret, hashlock_responder);
+
+    const depositTx = await writeContract(config, {
+      abi: ztomicAbi,
+      address: '0xc045c82615123D371347dDfD9E529e84302BA6fd' as Address,
+      functionName: 'deposit_responder',
+      args: [commitmentB.commitment, false, "0x0af700A3026adFddC10f7Aa8Ba2419e8503592f7"]
+    })
+    console.log("Counterparty Deposit transaction sent:", depositTx);
+    setDepositTx(depositTx);
+    setIsDepositing(true)
+
+      setTimeout(() => {
+      const depositId = createId()
+      const txHash = depositTx
+      const token = userRole === "initiator" ? order.fromToken : order.toToken
+      const user = userRole === "initiator" ? order.initiatorAddress : userIdentity.address
+
+      const depositRecord: DepositRecord = { id: depositId, swapId: order.id, user, token, amount: Number.parseFloat(amount), txHash, timestamp: new Date(), status: "confirmed" }
+      addDeposit(depositRecord)
+      addEvent({ id: createId(), swapId: order.id, type: "deposit", user, amount: Number.parseFloat(amount), token, txHash, blockNumber: Math.floor(Math.random() * 1000000) + 18000000, timestamp: new Date(), status: "pending" })
+
+      const newMessage: SwapMessage = { id: messageCount + 1, type: "deposit", sender: userRole === "initiator" ? "You (Initiator)" : "You (Counterparty)", timestamp: new Date(), message: `Deposited ${amount} ${token}`, status: "success" }
+      setMessages((prev) => [...prev, newMessage])
+      setMessageCount((prev) => prev + 1)
+
+      if (userRole === "initiator") setUserADeposited(true)
+      else setUserBDeposited(true)
+
+      setIsDepositing(false)
+
+      setTimeout(() => {
+        const bothDeposited = (userRole === "initiator" && userBDeposited) || (userRole === "counterparty" && userADeposited)
+        if (bothDeposited) {
+          setSwapStatus("completed")
+          const completionMessage: SwapMessage = { id: messageCount + 2, type: "event", timestamp: new Date(), message: "Swap completed successfully! Tokens exchanged.", status: "success" }
+          setMessages((prev) => [...prev, completionMessage])
+          setMessageCount((prev) => prev + 1)
+          addEvent({ id: createId(), swapId: order.id, type: "swap_completed", user: userIdentity.address, amount: Number.parseFloat(amount), token, txHash: `0x${Math.random().toString(16).substring(2, 66)}`, blockNumber: Math.floor(Math.random() * 1000000) + 18000000, timestamp: new Date(), status: "confirmed" })
+        }
+      }, 2000)
+    }, 800)
+  }
+}
+
   const handleSendMessage = (text: string) => {
     const newMessage: SwapMessage = { id: messageCount + 1, type: "message", sender: userIdentity.identity, timestamp: new Date(), message: text, status: "success" }
     setMessages((prev) => [...prev, newMessage])
@@ -346,21 +411,22 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
               amount={order.amount}
               isUserDeposit={true}
               hasDeposited={userBDeposited}
-              onDeposit={handleDeposit}
+              onDeposit={handleDepositCounterparty}
               isLoading={isDepositing}
               counterpartyName={getCounterpartyName()}
               orderId={order.id}
+              hashlock={hashlock_responder}
             />
           )}
 
 
-          <DepositTracker
+          {/* <DepositTracker
             swapId={order.id}
             userAddress={userRole === "initiator" ? order.initiatorAddress : userIdentity.address}
             counterpartyAddress={counterpartyIdentity?.userName || ""}
             initiatorToken={order.fromToken}
             counterpartyToken={order.toToken}
-          />
+          /> */}
         </div>
 
 

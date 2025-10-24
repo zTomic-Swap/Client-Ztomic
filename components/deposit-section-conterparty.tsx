@@ -14,7 +14,8 @@ interface DepositSectionProps {
   onDeposit: (amount: string, secret: string, nonce: string) => void
   isLoading?: boolean
   counterpartyName?: string
-  orderId?: string
+  orderId?: string,
+  hashlock?: string | null
 }
 
 export default function DepositSectionCounterparty({
@@ -26,7 +27,8 @@ export default function DepositSectionCounterparty({
   onDeposit,
   isLoading = false,
   counterpartyName,
-  orderId
+  orderId,
+  hashlock
 }: DepositSectionProps) {
   const [depositAmount, setDepositAmount] = useState("")
   const [secret, setSecret] = useState("");
@@ -91,7 +93,7 @@ export default function DepositSectionCounterparty({
                    <Input
                   type="text"
                   placeholder={`Enter secret for hashlock`}
-                  value={nonce}
+                  value={hashlock? hashlock : nonce}
                   onChange={(e) => setNonce(e.target.value)}
                   disabled={isLoading}
                   className="bg-secondary border-border text-foreground"
