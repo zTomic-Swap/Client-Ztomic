@@ -1,23 +1,23 @@
 import { Barretenberg, Fr, UltraHonkBackend } from "@aztec/bb.js";
 import { ethers } from "ethers";
 import { merkleTree } from "./merkleTree.js";
-import { Noir } from "@noir-lang/noir_js";
+import { Noir, type CompiledCircuit } from "@noir-lang/noir_js";
 import { Base8, mulPointEscalar } from "@zk-kit/baby-jubjub";
 import { fileURLToPath } from "url";
-
+import CircuitA from "../circuits/CircuitA.json";
 import path from "path";
 import fs from "fs";
 
 // Load Circuit
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const circuit = JSON.parse(
-  fs.readFileSync(
-    path.resolve(__dirname, "../../Circuits-Noir/target/circuit_alice.json"),
-    "utf8"
-  )
-);
-
+// const __filename = fileURLToPath(import.meta.url);
+// const __dirname = path.dirname(__filename);
+// const circuit = JSON.parse(
+//   fs.readFileSync(
+//     path.resolve(__dirname, "../../Circuits-Noir/target/circuit_alice.json"),
+//     "utf8"
+//   )
+// );
+const circuit = CircuitA as CompiledCircuit;
 /**
  * Generates Alice's proof for the swap.
  *

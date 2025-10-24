@@ -21,6 +21,7 @@ import WithdrawSectionCounterparty from "@/components/withdraw-section-counterpa
 // import { createSharedSecret } from "../context/createSecret"
 import { generateCommitmentA } from "@/context/createCommitmentA"
 import { generateCommitmentB } from "@/context/createCommitmentB"
+import { createProofA } from "@/context/createProofA";
 
 
 
@@ -96,9 +97,9 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
           ccipMessageId: log.args.ccipMessageId
         };
 
-        if (log.args._order_id_hash === keccak256(stringToBytes(order.id))){
+        if (log.args._order_id_hash === keccak256(stringToBytes(order.id))) {
           setHashlock_responder(log.args.hashlock);
-        setCcipMessageId(log.args.ccipMessageId);
+          setCcipMessageId(log.args.ccipMessageId);
         }
 
         console.log("Decoded Counterparty Deposit Log:", decoded);
@@ -303,51 +304,51 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
   }
 
   const handleDepositCounterparty = async (amount: string, secret: string, hashlock: string) => {
-if(hashlock_responder){
-    const commitmentB = await generateCommitmentB([initiatorIdentity!.pubKeyX, initiatorIdentity!.pubKeyY], secret, hashlock_responder);
+    if (hashlock_responder) {
+      const commitmentB = await generateCommitmentB([initiatorIdentity!.pubKeyX, initiatorIdentity!.pubKeyY], secret, hashlock_responder);
 
-    const depositTx = await writeContract(config, {
-      abi: ztomicAbi,
-      address: '0x033573969fecA28C6754546b4a0B64535Bce0e98' as Address,
-      functionName: 'deposit_responder',
-      args: [commitmentB.commitment, false, "0x0af700A3026adFddC10f7Aa8Ba2419e8503592f7"]
-    })
-    console.log("Counterparty Deposit transaction sent:", depositTx);
-    setDepositTx(depositTx);
-    setIsDepositing(true)
-
-      setTimeout(() => {
-      const depositId = createId()
-      const txHash = depositTx
-      const token = userRole === "initiator" ? order.fromToken : order.toToken
-      const user = userRole === "initiator" ? order.initiatorAddress : userIdentity.address
-
-      const depositRecord: DepositRecord = { id: depositId, swapId: order.id, user, token, amount: Number.parseFloat(amount), txHash, timestamp: new Date(), status: "confirmed" }
-      addDeposit(depositRecord)
-      addEvent({ id: createId(), swapId: order.id, type: "deposit", user, amount: Number.parseFloat(amount), token, txHash, blockNumber: Math.floor(Math.random() * 1000000) + 18000000, timestamp: new Date(), status: "pending" })
-
-      const newMessage: SwapMessage = { id: messageCount + 1, type: "deposit", sender: userRole === "initiator" ? "You (Initiator)" : "You (Counterparty)", timestamp: new Date(), message: `Deposited ${amount} ${token}`, status: "success" }
-      setMessages((prev) => [...prev, newMessage])
-      setMessageCount((prev) => prev + 1)
-
-      if (userRole === "initiator") setUserADeposited(true)
-      else setUserBDeposited(true)
-
-      setIsDepositing(false)
+      const depositTx = await writeContract(config, {
+        abi: ztomicAbi,
+        address: '0x033573969fecA28C6754546b4a0B64535Bce0e98' as Address,
+        functionName: 'deposit_responder',
+        args: [commitmentB.commitment, false, "0x0af700A3026adFddC10f7Aa8Ba2419e8503592f7"]
+      })
+      console.log("Counterparty Deposit transaction sent:", depositTx);
+      setDepositTx(depositTx);
+      setIsDepositing(true)
 
       setTimeout(() => {
-        const bothDeposited = (userRole === "initiator" && userBDeposited) || (userRole === "counterparty" && userADeposited)
-        if (bothDeposited) {
-          setSwapStatus("completed")
-          const completionMessage: SwapMessage = { id: messageCount + 2, type: "event", timestamp: new Date(), message: "Swap completed successfully! Tokens exchanged.", status: "success" }
-          setMessages((prev) => [...prev, completionMessage])
-          setMessageCount((prev) => prev + 1)
-          addEvent({ id: createId(), swapId: order.id, type: "swap_completed", user: userIdentity.address, amount: Number.parseFloat(amount), token, txHash: `0x${Math.random().toString(16).substring(2, 66)}`, blockNumber: Math.floor(Math.random() * 1000000) + 18000000, timestamp: new Date(), status: "confirmed" })
-        }
-      }, 2000)
-    }, 800)
+        const depositId = createId()
+        const txHash = depositTx
+        const token = userRole === "initiator" ? order.fromToken : order.toToken
+        const user = userRole === "initiator" ? order.initiatorAddress : userIdentity.address
+
+        const depositRecord: DepositRecord = { id: depositId, swapId: order.id, user, token, amount: Number.parseFloat(amount), txHash, timestamp: new Date(), status: "confirmed" }
+        addDeposit(depositRecord)
+        addEvent({ id: createId(), swapId: order.id, type: "deposit", user, amount: Number.parseFloat(amount), token, txHash, blockNumber: Math.floor(Math.random() * 1000000) + 18000000, timestamp: new Date(), status: "pending" })
+
+        const newMessage: SwapMessage = { id: messageCount + 1, type: "deposit", sender: userRole === "initiator" ? "You (Initiator)" : "You (Counterparty)", timestamp: new Date(), message: `Deposited ${amount} ${token}`, status: "success" }
+        setMessages((prev) => [...prev, newMessage])
+        setMessageCount((prev) => prev + 1)
+
+        if (userRole === "initiator") setUserADeposited(true)
+        else setUserBDeposited(true)
+
+        setIsDepositing(false)
+
+        setTimeout(() => {
+          const bothDeposited = (userRole === "initiator" && userBDeposited) || (userRole === "counterparty" && userADeposited)
+          if (bothDeposited) {
+            setSwapStatus("completed")
+            const completionMessage: SwapMessage = { id: messageCount + 2, type: "event", timestamp: new Date(), message: "Swap completed successfully! Tokens exchanged.", status: "success" }
+            setMessages((prev) => [...prev, completionMessage])
+            setMessageCount((prev) => prev + 1)
+            addEvent({ id: createId(), swapId: order.id, type: "swap_completed", user: userIdentity.address, amount: Number.parseFloat(amount), token, txHash: `0x${Math.random().toString(16).substring(2, 66)}`, blockNumber: Math.floor(Math.random() * 1000000) + 18000000, timestamp: new Date(), status: "confirmed" })
+          }
+        }, 2000)
+      }, 800)
+    }
   }
-}
 
   const handleSendMessage = (text: string) => {
     const newMessage: SwapMessage = { id: messageCount + 1, type: "message", sender: userIdentity.identity, timestamp: new Date(), message: text, status: "success" }
@@ -357,30 +358,32 @@ if(hashlock_responder){
 
   // --- Withdraw handlers ---
   const handleWithdrawInitiator = async (
-    proof: string,
-    nullifierHash: string,
-    root: string,
+    secretKey: string,
     hashlockNonce: string,
     orderIdHash: string,
-    recipient?: string
+    recipient?: string,
+    fetchedLeaves?: Hash[]
   ) => {
     try {
       setIsWithdrawing(true)
+      if (!counterpartyIdentity || !fetchedLeaves) return
+      const { proof, publicInputs } = await createProofA(secretKey, [counterpartyIdentity?.pubKeyX, counterpartyIdentity?.pubKeyY], order.id, hashlockNonce, fetchedLeaves);
+      console.log("Generated proof for Initiator withdrawal:", proof, publicInputs)
       // proof should be bytes; assume the UI provides hex string (0x...)
-      const args = [proof, nullifierHash, root, hashlockNonce || "0x0", orderIdHash || stringToBytes(order.id), recipient || userIdentity.address]
-      const tx = await writeContract(config, {
-        abi: ztomicAbi,
-        address: '0x033573969fecA28C6754546b4a0B64535Bce0e98' as Address,
-        functionName: 'withdraw_initiator',
-        args: args as any,
-      })
-      console.log('withdraw_initiator tx:', tx)
-      setWithdrawTx(tx)
-      // update UI
-      setUserAWithdrawn(true)
-  addEvent({ id: createId(), swapId: order.id, type: 'withdrawal', user: userIdentity.address, amount: order.amount, token: order.fromToken, txHash: tx as any, blockNumber: Math.floor(Math.random() * 1000000) + 18000000, timestamp: new Date(), status: 'pending' })
-      setMessages((prev) => [...prev, { id: messageCount + 1, type: 'event', timestamp: new Date(), message: 'Initiator withdrawal submitted', status: 'pending' }])
-      setMessageCount((prev) => prev + 1)
+      // const args = [hashlockNonce || "0x0", orderIdHash || stringToBytes(order.id), recipient || userIdentity.address]
+      // const tx = await writeContract(config, {
+      //   abi: ztomicAbi,
+      //   address: '0x033573969fecA28C6754546b4a0B64535Bce0e98' as Address,
+      //   functionName: 'withdraw_initiator',
+      //   args: args as any,
+      // })
+      // console.log('withdraw_initiator tx:', tx)
+      // setWithdrawTx(tx)
+      // // update UI
+      // setUserAWithdrawn(true)
+      // addEvent({ id: createId(), swapId: order.id, type: 'withdrawal', user: userIdentity.address, amount: order.amount, token: order.fromToken, txHash: tx as any, blockNumber: Math.floor(Math.random() * 1000000) + 18000000, timestamp: new Date(), status: 'pending' })
+      // setMessages((prev) => [...prev, { id: messageCount + 1, type: 'event', timestamp: new Date(), message: 'Initiator withdrawal submitted', status: 'pending' }])
+      // setMessageCount((prev) => prev + 1)
     } catch (err) {
       console.error('Initiator withdraw failed', err)
     } finally {
@@ -406,7 +409,7 @@ if(hashlock_responder){
       console.log('withdraw_responder tx:', tx)
       setWithdrawTx(tx)
       setUserBWithdrawn(true)
-  addEvent({ id: createId(), swapId: order.id, type: 'withdrawal', user: userIdentity.address, amount: order.amount, token: order.toToken, txHash: tx as any, blockNumber: Math.floor(Math.random() * 1000000) + 18000000, timestamp: new Date(), status: 'pending' })
+      addEvent({ id: createId(), swapId: order.id, type: 'withdrawal', user: userIdentity.address, amount: order.amount, token: order.toToken, txHash: tx as any, blockNumber: Math.floor(Math.random() * 1000000) + 18000000, timestamp: new Date(), status: 'pending' })
       setMessages((prev) => [...prev, { id: messageCount + 1, type: 'event', timestamp: new Date(), message: 'Responder withdrawal submitted', status: 'pending' }])
       setMessageCount((prev) => prev + 1)
     } catch (err) {

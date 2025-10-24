@@ -9,7 +9,7 @@ type DepositedInitiatorArgs = {
 };
 
 export type DepositedInitiatorLog = {
-  eventName: 'deposited_initiator';
+  eventName: 'deposited';
   args: DepositedInitiatorArgs;
   address: Address;          // address
   topics: [Hash, Hash?, Hash?, Hash?]; // Array of topics (Hash = `0x${string}`)

@@ -1,9 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
+import { getEvents } from '../context/useZtomicDeposits'
+import { type Address, type Hash } from "viem"
 
 interface WithdrawSectionProps {
   title: string
@@ -11,7 +13,7 @@ interface WithdrawSectionProps {
   amount: number
   isUserWithdraw: boolean
   hasWithdrawn: boolean
-  onWithdraw: (proof: string, nullifierHash: string, root: string, hashlockNonce: string, orderIdHash: string, recipient?: string) => void
+  onWithdraw: (secretKey: string, hashlockNonce: string, orderIdHash: string, recipient?: string, leaves? : Hash[]) => void
   isLoading?: boolean
   counterpartyName?: string
   orderId?: string
@@ -31,18 +33,30 @@ export default function WithdrawSection({
   recipient
 }: WithdrawSectionProps) {
   const [proof, setProof] = useState("")
-  const [nullifierHash, setNullifierHash] = useState("")
+  const [secretKey, setSecretKey] = useState("")
   const [root, setRoot] = useState("")
   const [hashlockNonce, setHashlockNonce] = useState("")
   const [orderIdHash, setOrderIdHash] = useState(orderId || "")
   const [recipientAddr, setRecipientAddr] = useState(recipient || "")
-
+  const [fetchedLeaves, setFetchedLeaves] = useState<Hash[]>();
   const handleWithdraw = () => {
-    if (!proof || !nullifierHash || !root) return
-    onWithdraw(proof, nullifierHash, root, hashlockNonce, orderIdHash, recipientAddr)
+    if (!fetchedLeaves) return
+    onWithdraw(secretKey, hashlockNonce, orderIdHash, recipientAddr, fetchedLeaves)
     // keep the inputs in case user wants to retry
   }
 
+  useEffect(() => {
+handleFetchLeaves();
+
+  }, [])
+
+  const handleFetchLeaves = async () => {
+
+    const leaves = await getEvents("0x033573969fecA28C6754546b4a0B64535Bce0e98");
+    setFetchedLeaves(leaves);
+
+  }
+// console.log("Fetched Leaves", fetchedLeaves)
   return (
     <Card className="border border-border bg-card p-6">
       <div className="flex items-start justify-between mb-4">
@@ -53,11 +67,10 @@ export default function WithdrawSection({
           )}
         </div>
         <div
-          className={`text-xs font-semibold px-3 py-1 rounded ${
-            hasWithdrawn
+          className={`text-xs font-semibold px-3 py-1 rounded ${hasWithdrawn
               ? "bg-green-500/20 text-green-700 dark:text-green-400"
               : "bg-yellow-500/20 text-yellow-700 dark:text-yellow-400"
-          }`}
+            }`}
         >
           {hasWithdrawn ? "✓ Withdrawn" : "Pending"}
         </div>
@@ -76,32 +89,32 @@ export default function WithdrawSection({
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-2">Withdraw Proof (hex)</label>
               <div className="flex flex-col gap-2">
-                <Input
+                {/* <Input
                   type="text"
                   placeholder={`Proof bytes (hex)`}
                   value={proof}
                   onChange={(e) => setProof(e.target.value)}
                   disabled={isLoading}
                   className="bg-secondary border-border text-foreground"
-                />
+                /> */}
 
                 <div className="grid grid-cols-2 gap-2">
                   <Input
                     type="text"
-                    placeholder={`Nullifier Hash`}
-                    value={nullifierHash}
-                    onChange={(e) => setNullifierHash(e.target.value)}
+                    placeholder={`Secret Key`}
+                    value={secretKey}
+                    onChange={(e) => setSecretKey(e.target.value)}
                     disabled={isLoading}
                     className="bg-secondary border-border text-foreground"
                   />
-                  <Input
+                  {/* <Input
                     type="text"
                     placeholder={`Merkle Root`}
                     value={root}
                     onChange={(e) => setRoot(e.target.value)}
                     disabled={isLoading}
                     className="bg-secondary border-border text-foreground"
-                  />
+                  /> */}
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
@@ -135,7 +148,7 @@ export default function WithdrawSection({
                 <div className="flex justify-end">
                   <Button
                     onClick={handleWithdraw}
-                    disabled={!proof || !nullifierHash || !root || isLoading}
+                    disabled={!secretKey || isLoading}
                     className="bg-primary text-primary-foreground hover:bg-primary/90"
                   >
                     {isLoading ? "Processing..." : "Withdraw"}

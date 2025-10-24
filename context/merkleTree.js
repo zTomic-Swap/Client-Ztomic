@@ -1,24 +1,33 @@
 import { Barretenberg, Fr } from '@aztec/bb.js';
-  const bb = await Barretenberg.new();
 
 async function hashLeftRight(left, right) {
+  const bb = await Barretenberg.new();
   const frLeft = Fr.fromString(left);
   const frRight = Fr.fromString(right);
-  const hash = await this.bb.poseidon2Hash([frLeft, frRight]);
+  const hash = await bb.poseidon2Hash([frLeft, frRight]);
   return hash.toString();
 }
 
 export class PoseidonTree {
-  constructor(levels, zeros) {
+  constructor(levels, zeros, bb) {
     if (zeros.length < levels + 1) {
       throw new Error("Not enough zero values provided for the given tree height.");
     }
+    if (!bb) { // <-- Add this check
+      throw new Error("Barretenberg instance is required.");
+    }
     this.levels = levels;
-    this.hashLeftRight = hashLeftRight;
+    this.bb = bb;
     this.storage = new Map();
     this.zeros = zeros;
     this.totalLeaves = 0;
-    this.bb = bb;
+  }
+
+async hashLeftRight(left, right) {
+    const frLeft = Fr.fromString(left);
+    const frRight = Fr.fromString(right);
+    const hash = await this.bb.poseidon2Hash([frLeft, frRight]); 
+    return hash.toString();
   }
 
   async init(defaultLeaves = []) {
@@ -125,7 +134,7 @@ export class PoseidonTree {
   }
 }
 
-const ZERO_VALUES = [
+export const ZERO_VALUES = [
   "0x0d823319708ab99ec915efd4f7e03d11ca1790918e8f04cd14100aceca2aa9ff",
   "0x170a9598425eb05eb8dc06986c6afc717811e874326a79576c02d338bdf14f13",
   "0x273b1a40397b618dac2fc66ceb71399a3e1a60341e546e053cbfa5995e824caf",
@@ -151,7 +160,8 @@ const ZERO_VALUES = [
 
 export async function merkleTree(leaves) {
   const TREE_HEIGHT = 20;
-  const tree = new PoseidonTree(TREE_HEIGHT, ZERO_VALUES);
+  const bb = await Barretenberg.new();
+  const tree = new PoseidonTree(TREE_HEIGHT, ZERO_VALUES, bb);
 
   // Initialize tree with no leaves (all zeros)
   await tree.init();
