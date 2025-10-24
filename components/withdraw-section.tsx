@@ -52,7 +52,7 @@ handleFetchLeaves();
 
   const handleFetchLeaves = async () => {
 
-    const leaves = await getEvents("0x033573969fecA28C6754546b4a0B64535Bce0e98");
+    const leaves = await getEvents("0x63DFD07e625736bd20C62BD882e5D3475d8E0297");
     setFetchedLeaves(leaves);
 
   }

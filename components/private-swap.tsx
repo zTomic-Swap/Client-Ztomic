@@ -304,8 +304,8 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
   }
 
   const handleDepositCounterparty = async (amount: string, secret: string, hashlock: string) => {
-    if (hashlock_responder) {
-      const commitmentB = await generateCommitmentB([initiatorIdentity!.pubKeyX, initiatorIdentity!.pubKeyY], secret, hashlock_responder);
+    // if (hashlock_responder) {
+      const commitmentB = await generateCommitmentB([initiatorIdentity!.pubKeyX, initiatorIdentity!.pubKeyY], secret, "0x20828db891c6769e4815ef92044766cf1b4e250c75cae67afb5dae1e2747ccb2");
 
       const depositTx = await writeContract(config, {
         abi: ztomicAbi,
@@ -347,7 +347,7 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
           }
         }, 2000)
       }, 800)
-    }
+    // }
   }
 
   const handleSendMessage = (text: string) => {
@@ -370,20 +370,20 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
       const { proof, publicInputs } = await createProofA(secretKey, [counterpartyIdentity?.pubKeyX, counterpartyIdentity?.pubKeyY], order.id, hashlockNonce, fetchedLeaves);
       console.log("Generated proof for Initiator withdrawal:", proof, publicInputs)
       // proof should be bytes; assume the UI provides hex string (0x...)
-      // const args = [hashlockNonce || "0x0", orderIdHash || stringToBytes(order.id), recipient || userIdentity.address]
-      // const tx = await writeContract(config, {
-      //   abi: ztomicAbi,
-      //   address: '0x033573969fecA28C6754546b4a0B64535Bce0e98' as Address,
-      //   functionName: 'withdraw_initiator',
-      //   args: args as any,
-      // })
-      // console.log('withdraw_initiator tx:', tx)
-      // setWithdrawTx(tx)
-      // // update UI
-      // setUserAWithdrawn(true)
-      // addEvent({ id: createId(), swapId: order.id, type: 'withdrawal', user: userIdentity.address, amount: order.amount, token: order.fromToken, txHash: tx as any, blockNumber: Math.floor(Math.random() * 1000000) + 18000000, timestamp: new Date(), status: 'pending' })
-      // setMessages((prev) => [...prev, { id: messageCount + 1, type: 'event', timestamp: new Date(), message: 'Initiator withdrawal submitted', status: 'pending' }])
-      // setMessageCount((prev) => prev + 1)
+      const args = [proof, publicInputs[1], publicInputs[2], publicInputs[0], keccak256(stringToBytes(orderIdHash)), recipient];
+      const tx = await writeContract(config, {
+        abi: ztomicAbi,
+        address: '0x63DFD07e625736bd20C62BD882e5D3475d8E0297' as Address,
+        functionName: 'withdraw_initiator',
+        args: args as any,
+      })
+      console.log('withdraw_initiator tx:', tx)
+      setWithdrawTx(tx)
+      // update UI
+      setUserAWithdrawn(true)
+      addEvent({ id: createId(), swapId: order.id, type: 'withdrawal', user: userIdentity.address, amount: order.amount, token: order.fromToken, txHash: tx as any, blockNumber: Math.floor(Math.random() * 1000000) + 18000000, timestamp: new Date(), status: 'pending' })
+      setMessages((prev) => [...prev, { id: messageCount + 1, type: 'event', timestamp: new Date(), message: 'Initiator withdrawal submitted', status: 'pending' }])
+      setMessageCount((prev) => prev + 1)
     } catch (err) {
       console.error('Initiator withdraw failed', err)
     } finally {
@@ -402,7 +402,7 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
       const args = [proof, nullifierHash, root, recipient || userIdentity.address]
       const tx = await writeContract(config, {
         abi: ztomicAbi,
-        address: '0x033573969fecA28C6754546b4a0B64535Bce0e98' as Address,
+        address: '0x63DFD07e625736bd20C62BD882e5D3475d8E0297' as Address,
         functionName: 'withdraw_responder',
         args: args as any,
       })

@@ -41,6 +41,8 @@ export async function generateCommitmentB(
   
   // This line (previously 32) is where the error originates
   const hashlock_fr = Fr.fromString(hashlock);
+  
+  const haslock_hash_fr = await bb.poseidon2Hash([hashlock_fr]);
 
   console.log("Counterparty (Alice) Public Keys:", publicKeyCounterparty);
   console.log("Input Hashlock (from Alice):", hashlock);
@@ -61,7 +63,7 @@ export async function generateCommitmentB(
     // 4. Calculate Commitment B
     // This logic matches generateBobCommitment
     const derivedCommitmentB_fr = await bb.poseidon2Hash([
-      hashlock_fr,
+      haslock_hash_fr,
       shared_secret_x_fr,
     ]);
     console.log("Derived Commitment B (Fr):", derivedCommitmentB_fr.toString());

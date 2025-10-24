@@ -1,6 +1,6 @@
 import { Barretenberg, Fr, UltraHonkBackend } from "@aztec/bb.js";
 import { ethers } from "ethers";
-import { merkleTree } from "./merkleTree.js";
+import { PoseidonTree, ZERO_VALUES } from "./merkleTree.js";
 import { Noir, type CompiledCircuit } from "@noir-lang/noir_js";
 import { Base8, mulPointEscalar } from "@zk-kit/baby-jubjub";
 import { fileURLToPath } from "url";
@@ -64,7 +64,15 @@ export async function createProofA(
     const bob_pk_x_fr = new Fr(bob_pk_point[0]);
 
     // --- 2. Build Merkle Tree ---
-    const tree = await merkleTree(leaves);
+    const tree = new PoseidonTree(20, ZERO_VALUES);
+    console.log("Merkle Tree leaves:", leaves);
+    await tree.init([], bb);
+
+    for (const leaf of leaves) {
+     await tree.insert(leaf, bb);
+    }
+
+    console.log("Merkle Tree initialized with root:", tree.root().toString());
 
     // --- 3. Calculate Secrets and Commitments ---
     const shared_secret = mulPointEscalar(bob_pk_point, alice_sk);
@@ -90,11 +98,16 @@ export async function createProofA(
       shared_secret_x_fr,
     ]);
 
+    console.log("derived_commitment_fr:", derived_commitment_fr.toString());
+
     // --- 4. Get Merkle Proof ---
     const commitmentIndex = tree.getIndex(derived_commitment_fr.toString());
     if (commitmentIndex === -1) {
       throw new Error("Generated commitment not found in the Merkle tree leaves.");
     }
+    console.log("Commitment Index in Merkle Tree:", commitmentIndex);
+    const merkleRoot = tree.root();
+    console.log("Reconstructed Merkle Root:", merkleRoot.toString());
     const merkleProof = tree.proof(commitmentIndex);
 
     // --- 5. Prepare Noir Inputs ---

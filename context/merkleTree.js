@@ -1,7 +1,6 @@
 import { Barretenberg, Fr } from '@aztec/bb.js';
 
-async function hashLeftRight(left, right) {
-  const bb = await Barretenberg.new();
+async function hashLeftRight(left, right, bb) {
   const frLeft = Fr.fromString(left);
   const frRight = Fr.fromString(right);
   const hash = await bb.poseidon2Hash([frLeft, frRight]);
@@ -9,28 +8,18 @@ async function hashLeftRight(left, right) {
 }
 
 export class PoseidonTree {
-  constructor(levels, zeros, bb) {
+  constructor(levels, zeros) {
     if (zeros.length < levels + 1) {
       throw new Error("Not enough zero values provided for the given tree height.");
     }
-    if (!bb) { // <-- Add this check
-      throw new Error("Barretenberg instance is required.");
-    }
     this.levels = levels;
-    this.bb = bb;
+    this.hashLeftRight = hashLeftRight;
     this.storage = new Map();
     this.zeros = zeros;
     this.totalLeaves = 0;
   }
 
-async hashLeftRight(left, right) {
-    const frLeft = Fr.fromString(left);
-    const frRight = Fr.fromString(right);
-    const hash = await this.bb.poseidon2Hash([frLeft, frRight]); 
-    return hash.toString();
-  }
-
-  async init(defaultLeaves = []) {
+  async init(defaultLeaves = [], bb) {
     if (defaultLeaves.length > 0) {
       this.totalLeaves = defaultLeaves.length;
 
@@ -43,7 +32,7 @@ async hashLeftRight(left, right) {
         for (let i = 0; i < numNodes; i++) {
           const left = this.storage.get(PoseidonTree.indexToKey(level - 1, 2 * i)) || this.zeros[level - 1];
           const right = this.storage.get(PoseidonTree.indexToKey(level - 1, 2 * i + 1)) || this.zeros[level - 1];
-          const node = await this.hashLeftRight(left, right);
+          const node = await this.hashLeftRight(left, right, bb);
           this.storage.set(PoseidonTree.indexToKey(level, i), node);
         }
       }
@@ -88,13 +77,13 @@ async hashLeftRight(left, right) {
     };
   }
 
-  async insert(leaf) {
+  async insert(leaf, bb) {
     const index = this.totalLeaves;
-    await this.update(index, leaf, true);
+    await this.update(index, leaf, true, bb);
     this.totalLeaves++;
   }
 
-  async update(index, newLeaf, isInsert = false) {
+  async update(index, newLeaf, isInsert = false, bb) {
     if (!isInsert && index >= this.totalLeaves) {
       throw Error("Use insert method for new elements.");
     } else if (isInsert && index < this.totalLeaves) {
@@ -108,7 +97,7 @@ async hashLeftRight(left, right) {
       const sibling = this.storage.get(PoseidonTree.indexToKey(level, siblingIndex)) || this.zeros[level];
       const [left, right] = currentIndex % 2 === 0 ? [currentElement, sibling] : [sibling, currentElement];
       keyValueToStore.push({ key: PoseidonTree.indexToKey(level, currentIndex), value: currentElement });
-      currentElement = await this.hashLeftRight(left, right);
+      currentElement = await this.hashLeftRight(left, right, bb);
     });
 
     keyValueToStore.push({ key: PoseidonTree.indexToKey(this.levels, 0), value: currentElement });
@@ -160,8 +149,7 @@ export const ZERO_VALUES = [
 
 export async function merkleTree(leaves) {
   const TREE_HEIGHT = 20;
-  const bb = await Barretenberg.new();
-  const tree = new PoseidonTree(TREE_HEIGHT, ZERO_VALUES, bb);
+  const tree = new PoseidonTree(TREE_HEIGHT, ZERO_VALUES);
 
   // Initialize tree with no leaves (all zeros)
   await tree.init();
