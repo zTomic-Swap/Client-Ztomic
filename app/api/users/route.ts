@@ -1,71 +1,37 @@
 import { NextResponse } from "next/server";
-import { readUserKeys, writeUserKeys } from "@/app/lib/userData";
-import { UserKey } from "@/app/lib/types";
-import { generateKeysFromSecret } from "@/app/lib/keyGeneration"; // Import your new function
+
+const EXTERNAL_API = process.env.EXTERNAL_API_URL;
+if (!EXTERNAL_API) {
+  throw new Error("EXTERNAL_API_URL is not configured");
+}
 
 /**
- * GET: Retrieve all user-key mappings
- * (No changes needed)
+ * Proxy GET /api/users -> EXTERNAL_API/users
  */
 export async function GET(request: Request) {
   try {
-    const users = await readUserKeys();
-    return NextResponse.json(users);
+    const res = await fetch(`${EXTERNAL_API}/users`);
+    const data = await res.json();
+    return NextResponse.json(data, { status: res.status });
   } catch (error) {
-    return NextResponse.json(
-      { error: (error as Error).message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
   }
 }
 
 /**
- * POST: Create a new user and generate keys from a secret
- * (This is the updated part)
+ * Proxy POST /api/users -> EXTERNAL_API/users
  */
 export async function POST(request: Request) {
   try {
-    // 1. Now we expect userName and secretValue
-    const body = (await request.json()) as {
-      userName: string;
-      secretValue: string;
-    };
-
-    if (!body.userName || !body.secretValue) {
-      return NextResponse.json(
-        { error: "Missing required fields: userName, secretValue" },
-        { status: 400 }
-      );
-    }
-
-    const users = await readUserKeys();
-    const existingUser = users.find((u) => u.userName === body.userName);
-
-    if (existingUser) {
-      return NextResponse.json(
-        { error: "User with this userName already exists" },
-        { status: 409 } // 409 Conflict
-      );
-    }
-
-    // 2. Call your key generation algorithm
-    const { pubKeyX, pubKeyY } = await generateKeysFromSecret(body.secretValue);
-
-    // 3. Create the new user with the generated keys
-    const newUser: UserKey = {
-      userName: body.userName,
-      pubKeyX: pubKeyX,
-      pubKeyY: pubKeyY,
-    };
-
-    const updatedUsers = [newUser, ...users];
-    await writeUserKeys(updatedUsers);
-
-    return NextResponse.json(newUser, { status: 201 }); // 201 Created
+    const body = await request.json();
+    const res = await fetch(`${EXTERNAL_API}/users`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    return NextResponse.json(data, { status: res.status });
   } catch (error) {
-    return NextResponse.json(
-      { error: (error as Error).message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
   }
 }
