@@ -35,7 +35,6 @@ export async function createProofA(
   hashlockNonce: string,
   leaves: string[]
 ): Promise<{ proof: string; publicInputs: string[] }> {
-
   // --- Input Guard Clauses ---
   if (!secretKeyParty) throw new Error("Invalid 'secretKeyParty' parameter.");
   if (
@@ -55,8 +54,11 @@ export async function createProofA(
   console.log("order id in proof generation", orderId);
   try {
     // --- 1. Convert Inputs ---
-    const secretKeyHex = convertToHex(secretKeyParty)
-    const alice_sk = BigInt(secretKeyHex);
+    // --- FIXED ---
+    console.log(" secret key string", secretKeyParty);
+    const alice_sk = BigInt(secretKeyParty);
+    // --- END FIX ---
+
     const bob_pk_point: [bigint, bigint] = [
       BigInt(publicKeyCounterparty[0]),
       BigInt(publicKeyCounterparty[1]),
@@ -90,7 +92,10 @@ export async function createProofA(
       nonce_fr,
     ]);
 
-    const derived_commitment = await bb.poseidon2Hash([reconstructed_hash_lock_fr, shared_secret_x_fr])
+    const derived_commitment = await bb.poseidon2Hash([
+      reconstructed_hash_lock_fr,
+      shared_secret_x_fr,
+    ]);
 
     // Compute nullifier (shared_secret_x, Bob_PK_x, order_id)
     const computed_nullifier_fr = await bb.poseidon2Hash([
@@ -113,23 +118,27 @@ export async function createProofA(
     console.log("derived Commitement", derived_commitment.toString());
     const commitmentIndex = tree.getIndex(derived_commitment.toString());
     if (commitmentIndex === -1) {
-      throw new Error("Generated commitment not found in the Merkle tree leaves.");
+      throw new Error(
+        "Generated commitment not found in the Merkle tree leaves."
+      );
     }
     console.log("Commitment Index in Merkle Tree:", commitmentIndex);
     const merkleRoot = tree.root();
     console.log("Reconstructed Merkle Root:", merkleRoot.toString());
     const merkleProof = tree.proof(commitmentIndex);
-    console.log("merkle proof root ", merkleProof.root.toString())
+    console.log("merkle proof root ", merkleProof.root.toString());
 
     // console.log
-
 
     // --- 5. Prepare Noir Inputs ---
     const noir = new Noir(circuit);
     const honk = new UltraHonkBackend(circuit.bytecode, { threads: 1 });
 
     const input = {
-      alice_priv_key: secretKeyHex,
+      // --- FIXED ---
+      // Pass the original string, not the incorrect hex
+      alice_priv_key: secretKeyParty,
+      // --- END FIX ---
       bob_pub_key_x: publicKeyCounterparty[0],
       bob_pub_key_y: publicKeyCounterparty[1],
       order_id: order_id_fr.toString(),
@@ -144,7 +153,7 @@ export async function createProofA(
     const { witness } = await noir.execute(input);
 
     const originalLog = console.log; // Save original
-    console.log = () => { }; // Silence logs
+    console.log = () => {}; // Silence logs
 
     const { proof, publicInputs } = await honk.generateProof(witness, {
       keccak: true,
@@ -162,7 +171,6 @@ export async function createProofA(
       proof: proofHex,
       publicInputs: publicInputsStrings,
     };
-
   } catch (error) {
     console.error("Error generating Alice's proof:", error);
     throw error;
@@ -171,10 +179,6 @@ export async function createProofA(
   }
 }
 
-function convertToHex(str: string) {
-    var hex = '';
-    for(var i=0;i<str.length;i++) {
-        hex += ''+str.charCodeAt(i).toString(16);
-    }
-    return hex;
-}
+// --- FIXED ---
+// Deleted convertToHex function
+// --- END FIX ---

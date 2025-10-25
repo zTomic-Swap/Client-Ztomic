@@ -1,10 +1,9 @@
 "use client"
 
-import { useState, useMemo, useCallback, useEffect } from "react"
+import { useState, useMemo, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { useIntentStore, type Intent } from "@/components/intent-store"
-import { useIntentSync } from "@/components/intent-store-sync"
 import OrderFilters, { type SortOption, type TokenFilter } from "@/components/order-filters"
 import OrderPreviewModal from "@/components/order-preview-modal"
 import BroadcastBoard from "@/components/broadcast-board"
@@ -21,20 +20,8 @@ function BrowseOrders({ onSelectOrder, userIdentity }: BrowseOrdersProps) {
   const [selectedOrderForPreview, setSelectedOrderForPreview] = useState<Intent | null>(null)
   const [isConfirming, setIsConfirming] = useState(false)
 
-  // Use the sync hook for real-time updates
-  useIntentSync();
-
   const intents = useIntentStore((state) => state.intents)
   const addInterest = useIntentStore((state) => state.addInterest)
-
-  // Update userInterests based on intents changes
-  useEffect(() => {
-    setUserInterests(new Set(
-      intents
-        .filter(intent => intent.interestedParties.includes(userIdentity.identity))
-        .map(intent => intent.id.toString())
-    ));
-  }, [intents, userIdentity.identity]);
 
   const filteredAndSortedOrders = useMemo(() => {
     let filtered = intents.filter(
@@ -59,10 +46,18 @@ function BrowseOrders({ onSelectOrder, userIdentity }: BrowseOrdersProps) {
   }, [intents, userIdentity.identity, tokenFilter, sortBy])
 
   const handleShowInterest = useCallback(
-    async (orderId: number) => {
-      await addInterest(orderId, userIdentity.identity);
+    (orderId: number) => {
+      const newInterests = new Set(userInterests)
+      const orderIdStr = orderId.toString()
+      if (newInterests.has(orderIdStr)) {
+        newInterests.delete(orderIdStr)
+      } else {
+        newInterests.add(orderIdStr)
+      }
+      setUserInterests(newInterests)
+      addInterest(orderId, userIdentity.identity)
     },
-    [addInterest, userIdentity.identity],
+    [userInterests, addInterest, userIdentity.identity],
   )
 
   const handlePreviewOrder = useCallback((order: Intent) => {

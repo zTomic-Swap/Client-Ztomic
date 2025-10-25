@@ -36,7 +36,7 @@ export default function WithdrawSection({
   const [secretKey, setSecretKey] = useState("")
   const [root, setRoot] = useState("")
   const [hashlockNonce, setHashlockNonce] = useState("")
-  const [orderIdHash, setOrderIdHash] = useState(orderId || "")
+  const [orderIdHash, setOrderIdHash] = useState((orderId && orderId.toString()) || "")
   const [recipientAddr, setRecipientAddr] = useState(recipient || "")
   const [fetchedLeaves, setFetchedLeaves] = useState<Hash[]>();
   const handleWithdraw = () => {

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import type { JSX } from 'react'
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import DepositSection from "@/components/deposit-section"
@@ -9,7 +10,7 @@ import MessageBoard, { type SwapMessage } from "@/components/message-board"
 import DepositTracker from "@/components/deposit-tracker"
 import EventLog from "@/components/event-log"
 import { useEventMonitor, type DepositRecord } from "@/components/event-monitor"
-// import { UserIdentity } from "@/context/UserIdentityContext"
+import { UserIdentity } from "@/context/UserIdentityContext"
 import { useIntentStore } from "@/components/intent-store"
 import { watchContractEvent, writeContract } from "@wagmi/core"
 import { type Address, type Hash, type Abi, keccak256, stringToBytes } from 'viem';
@@ -30,10 +31,42 @@ const ztomicAbi = ztomicAbiJson.abi as Abi;
 
 // unwatch()
 
+// Import Intent type
+import type { Intent } from "@/components/intent-store"
+
+interface SwapOrder {
+  id: string
+  initiator: string
+  initiatorAddress: string
+  selectedCounterparty?: string  // Make this optional to match the intent type
+  fromToken: string
+  toToken: string
+  amount: string
+  status: "pending" | "active" | "completed" | "cancelled"
+  createdAt: string
+  interestedParties: string[]
+}
+
+// Convert Intent to SwapOrder
+function convertIntentToSwapOrder(intent: Intent): SwapOrder {
+  return {
+    id: String(intent.id),
+    initiator: intent.initiator,
+    initiatorAddress: intent.initiatorAddress,
+    selectedCounterparty: intent.selectedCounterparty,
+    fromToken: intent.fromToken,
+    toToken: intent.toToken,
+    amount: String(intent.amount),
+    status: intent.status,
+    createdAt: intent.createdAt,
+    interestedParties: intent.interestedParties || []
+  }
+}
+
 interface PrivateSwapProps {
-  order: any
+  order: SwapOrder
   userRole: "initiator" | "counterparty" | null
-  userIdentity: any
+  userIdentity: NonNullable<UserIdentity>  // Ensure userIdentity is non-null
 }
 
 interface CounterpartyIdentity {
@@ -51,7 +84,17 @@ function createId() {
   return `id-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`
 }
 
-export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSwapProps) {
+export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSwapProps): JSX.Element {
+  // Order state management
+  const [currentOrder, setCurrentOrder] = useState<SwapOrder | null>(() => ({
+    ...order,
+    id: String(order.id),
+    amount: String(order.amount)
+  }))
+  const [fetchError, setFetchError] = useState(false)
+  const [retryCount, setRetryCount] = useState(0)
+  
+  // Swap state
   const [userADeposited, setUserADeposited] = useState(false)
   const [userBDeposited, setUserBDeposited] = useState(false)
   const [messages, setMessages] = useState<SwapMessage[]>([])
@@ -60,6 +103,7 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
   const [messageCount, setMessageCount] = useState(0)
 
   const intents = useIntentStore((state) => state.intents)
+  const fetchIntents = useIntentStore((state) => state.fetchIntents)
   const [initiatorIdentity, setInitiatorIdentity] = useState<CounterpartyIdentity | null>(null)
   const [counterpartyIdentity, setCounterpartyIdentity] = useState<CounterpartyIdentity | null>(null)
   const [counterpartyStatus, setCounterpartyStatus] = useState<"loading" | "found" | "error">("loading")
@@ -86,8 +130,19 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
   const addEvent = useEventMonitor((state) => state.addEvent)
 
   useEffect(() => {
+    if (!order || !userRole) return;
     decodeCounterPartyDepositLogs();
-  }, [eventLogs_depositInitiator,eventLogs_withdrawInitiator,eventLogs_depositResponder])
+  }, [
+    eventLogs_depositInitiator,
+    eventLogs_withdrawInitiator,
+    eventLogs_depositResponder,
+    order,
+    userRole,
+    counterpartyIdentity,
+    initiatorIdentity,
+    secretKey_initiator,
+    hashlock_initiator
+  ]);
 
 
 
@@ -105,7 +160,7 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
           ccipMessageId: log.args.ccipMessageId
         };
 
-        if (log.args._order_id_hash === keccak256(stringToBytes(order.id))) {
+        if (log.args._order_id_hash === keccak256(stringToBytes(order.id.toString()))) {
           setHashlock_responder(log.args.hashlock);
           setCcipMessageId(log.args.ccipMessageId);
         }
@@ -120,7 +175,7 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
           hashlock_nonce: log.data
         };
 
-        if (log.args._order_id_hash === keccak256(stringToBytes(order.id))) {
+        if (log.args._order_id_hash === keccak256(stringToBytes(order.id.toString()))) {
           setNonce_responder(log.data)
         }
 
@@ -155,12 +210,19 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
   }
 
   useEffect(() => {
+    if (!currentOrder || fetchError) {
+      console.log("Skipping event setup - no order details or error state");
+      return;
+    }
+
+    console.log("Setting up contract event watchers for order:", currentOrder.id);
+    
     const unwatchDespositInitiator = watchContractEvent(config, {
       address: '0x63DFD07e625736bd20C62BD882e5D3475d8E0297',
       abi: ztomicAbi,
       eventName: 'deposited',
       onLogs(logs) {
-        console.log('New logs!', logs);
+        console.log('New initiator deposit logs:', logs);
 
         // FIX: Explicitly cast the logs to your specific type
         setEventLogs_depositInitiator(prevLogs => [
@@ -207,65 +269,99 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
       unwatchDespositResponder();
       unwatchWithdrawInitiator();
     };
-  }, [eventLogs_depositInitiator]);
+  }, [currentOrder, fetchError]);
 
   useEffect(() => {
-    const currentOrder = intents.find((i) => i.id === order.id)
+    const syncOrderWithGlobalState = async () => {
+      try {
+        // First try to get from local state
+        console.log("Searching for order in global state:", order.id);
+        const localOrder = intents.find((i) => String(i.id) === order.id);
+        
+        if (localOrder) {
+          console.log("Found order in global state:", localOrder);
+          setCurrentOrder(convertIntentToSwapOrder(localOrder));
+          setFetchError(false);
+          return;
+        }
 
-    if (!currentOrder) {
-      console.error("Swap order details not found in global state.")
-      setCounterpartyStatus("error")
-      return
-    }
+        // If not found and under retry limit, fetch fresh intents
+        if (retryCount < 3) {
+          console.log(`Order not found in global state, fetching fresh intents (attempt ${retryCount + 1})...`);
+          await fetchIntents();
+          setRetryCount(prev => prev + 1);
+          return; // The next effect run will check the refreshed intents
+        }
+
+        // If we've exhausted retries, try the API directly
+        console.log("Retries exhausted, trying direct API call...");
+        const response = await fetch(`/api/intents/${order.id}`);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch order details: ${response.status}`);
+        }
+        
+        const fetchedOrder = await response.json();
+        console.log("Fetched order from API:", fetchedOrder);
+        setCurrentOrder(fetchedOrder);
+        setFetchError(false);
+      } catch (error) {
+        console.error("Error syncing order details:", error);
+        setFetchError(true);
+        setCounterpartyStatus("error");
+      }
+    };
+
+    syncOrderWithGlobalState();
+  }, [intents, order.id, retryCount]);
 
 
 
-    // --- LOGIC FIX: Correctly identify the counterparty for BOTH roles ---
-    const counterpartyName = currentOrder.selectedCounterparty;
-    const initiatorName = currentOrder.initiator;
+  // Effect to fetch counterparty and initiator data
+  useEffect(() => {
+    if (!currentOrder) return;
 
-    const fetchInitiatorData = async () => {
+    const fetchParticipantData = async () => {
+      const counterpartyName = currentOrder.selectedCounterparty;
+      const initiatorName = currentOrder.initiator;
+
+      // Fetch initiator data
       try {
         const response = await fetch(`/api/users/${encodeURIComponent(initiatorName)}`);
         if (!response.ok) {
-          throw new Error("Initiator not found.")
+          throw new Error("Initiator not found.");
         }
-        const data: CounterpartyIdentity = await response.json()
-        console.log("Initiator response data", data)
-        setInitiatorIdentity(data)
+        const data: CounterpartyIdentity = await response.json();
+        console.log("Initiator response data", data);
+        setInitiatorIdentity(data);
       } catch (error) {
-        console.error("Error fetching initiator:", error)
+        console.error("Error fetching initiator:", error);
       }
-    }
 
-    if (counterpartyName) {
-      setCounterpartyStatus("loading")
-      const fetchCounterpartyData = async () => {
+      // Fetch counterparty data if available
+      if (counterpartyName) {
+        setCounterpartyStatus("loading");
         try {
           const response = await fetch(`/api/users/${encodeURIComponent(counterpartyName)}`);
           if (!response.ok) {
-            throw new Error("Counterparty not found.")
+            throw new Error("Counterparty not found.");
           }
 
-          const data: CounterpartyIdentity = await response.json()
-          console.log("response data", data)
-          setCounterpartyIdentity(data)
-
-
-
-          setCounterpartyStatus("found")
+          const data: CounterpartyIdentity = await response.json();
+          console.log("Counterparty response data", data);
+          setCounterpartyIdentity(data);
+          setCounterpartyStatus("found");
         } catch (error) {
-          console.error("Error fetching counterparty:", error)
-          setCounterpartyStatus("error")
+          console.error("Error fetching counterparty:", error);
+          setCounterpartyStatus("error");
         }
+      } else {
+        console.error("Counterparty name is missing from the order object.");
+        setCounterpartyStatus("error");
       }
-      fetchInitiatorData();
-      fetchCounterpartyData()
-    } else {
-      console.error("Counterparty name is missing from the order object.")
-      setCounterpartyStatus("error")
-    }
-  }, [])
+    };
+
+    fetchParticipantData();
+  }, [currentOrder]);
 
   useEffect(() => {
     const initialMessages: SwapMessage[] = [
@@ -275,12 +371,12 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
     setMessages(initialMessages)
     setMessageCount(2)
 
-    addEvent({
+      addEvent({
       id: createId(),
-      swapId: order.id,
+      swapId: String(order.id),
       type: "swap_initiated",
       user: order.initiator,
-      amount: order.amount,
+      amount: parseFloat(order.amount) || 0,  // Convert to number with fallback
       token: order.fromToken,
       txHash: `0x${Math.random().toString(16).substring(2, 66)}`,
       blockNumber: Math.floor(Math.random() * 1000000) + 18000000,
@@ -296,7 +392,7 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
       console.log("Counterparty Key Y:", counterpartyIdentity.pubKeyY)
       console.log("Your Secret:", secret)
 
-      const orderIdHash = keccak256(stringToBytes(order.id));
+      const orderIdHash = keccak256(stringToBytes(order.id.toString()));
       console.log("Order ID Hash:", orderIdHash)
       console.log("generating Commitment A  for Initiator.")
       const commitmentA = await generateCommitmentA([counterpartyIdentity.pubKeyX, counterpartyIdentity.pubKeyY], secret, hashlockNonce);
@@ -318,15 +414,35 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
 
       setIsDepositing(true)
     }
-    setTimeout(() => {
+      setTimeout(() => {
       const depositId = createId()
       const txHash = depositTx
       const token = userRole === "initiator" ? order.fromToken : order.toToken
-      const user = userRole === "initiator" ? order.initiatorAddress : userIdentity.address
+      const user = userRole === "initiator" ? order.initiatorAddress : userIdentity?.address || ''
 
-      const depositRecord: DepositRecord = { id: depositId, swapId: order.id, user, token, amount: Number.parseFloat(amount), txHash, timestamp: new Date(), status: "confirmed" }
+      const depositRecord: DepositRecord = { 
+        id: depositId, 
+        swapId: String(order.id), 
+        user, 
+        token, 
+        amount: parseFloat(amount) || 0, // Add fallback and ensure number
+        txHash, 
+        timestamp: new Date(), 
+        status: "confirmed" 
+      }
       addDeposit(depositRecord)
-      addEvent({ id: createId(), swapId: order.id, type: "deposit", user, amount: Number.parseFloat(amount), token, txHash, blockNumber: Math.floor(Math.random() * 1000000) + 18000000, timestamp: new Date(), status: "pending" })
+      addEvent({ 
+        id: createId(), 
+        swapId: String(order.id), 
+        type: "deposit", 
+        user, 
+        amount: parseFloat(amount) || 0, 
+        token, 
+        txHash, 
+        blockNumber: Math.floor(Math.random() * 1000000) + 18000000, 
+        timestamp: new Date(), 
+        status: "pending" 
+      })
 
       const newMessage: SwapMessage = { id: messageCount + 1, type: "deposit", sender: userRole === "initiator" ? "You (Initiator)" : "You (Counterparty)", timestamp: new Date(), message: `Deposited ${amount} ${token}`, status: "success" }
       setMessages((prev) => [...prev, newMessage])
@@ -344,7 +460,7 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
           const completionMessage: SwapMessage = { id: messageCount + 2, type: "event", timestamp: new Date(), message: "Swap completed successfully! Tokens exchanged.", status: "success" }
           setMessages((prev) => [...prev, completionMessage])
           setMessageCount((prev) => prev + 1)
-          addEvent({ id: createId(), swapId: order.id, type: "swap_completed", user: userIdentity.address, amount: Number.parseFloat(amount), token, txHash: `0x${Math.random().toString(16).substring(2, 66)}`, blockNumber: Math.floor(Math.random() * 1000000) + 18000000, timestamp: new Date(), status: "confirmed" })
+          addEvent({ id: createId(), swapId: order.id, type: "swap_completed", user: userIdentity?.address || '', amount: Number.parseFloat(amount), token, txHash: `0x${Math.random().toString(16).substring(2, 66)}`, blockNumber: Math.floor(Math.random() * 1000000) + 18000000, timestamp: new Date(), status: "confirmed" })
         }
       }, 2000)
     }, 800)
@@ -371,9 +487,29 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
       const token = userRole === "initiator" ? order.fromToken : order.toToken
       const user = userRole === "initiator" ? order.initiatorAddress : userIdentity.address
 
-      const depositRecord: DepositRecord = { id: depositId, swapId: order.id, user, token, amount: Number.parseFloat("1"), txHash, timestamp: new Date(), status: "confirmed" }
+      const depositRecord: DepositRecord = { 
+        id: depositId, 
+        swapId: String(order.id), 
+        user, 
+        token, 
+        amount: Number.parseFloat("1"), 
+        txHash, 
+        timestamp: new Date(), 
+        status: "confirmed" 
+      }
       addDeposit(depositRecord)
-      addEvent({ id: createId(), swapId: order.id, type: "deposit", user, amount: Number.parseFloat("1"), token, txHash, blockNumber: Math.floor(Math.random() * 1000000) + 18000000, timestamp: new Date(), status: "pending" })
+      addEvent({ 
+        id: createId(), 
+        swapId: String(order.id), 
+        type: "deposit", 
+        user, 
+        amount: Number.parseFloat("1"), 
+        token, 
+        txHash, 
+        blockNumber: Math.floor(Math.random() * 1000000) + 18000000, 
+        timestamp: new Date(), 
+        status: "pending" 
+      })
 
       const newMessage: SwapMessage = { id: messageCount + 1, type: "deposit", sender: userRole === "initiator" ? "You (Initiator)" : "You (Counterparty)", timestamp: new Date(), message: `Deposited ${"1"} ${token}`, status: "success" }
       setMessages((prev) => [...prev, newMessage])
@@ -391,7 +527,7 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
           const completionMessage: SwapMessage = { id: messageCount + 2, type: "event", timestamp: new Date(), message: "Swap completed successfully! Tokens exchanged.", status: "success" }
           setMessages((prev) => [...prev, completionMessage])
           setMessageCount((prev) => prev + 1)
-          addEvent({ id: createId(), swapId: order.id, type: "swap_completed", user: userIdentity.address, amount: Number.parseFloat("1"), token, txHash: `0x${Math.random().toString(16).substring(2, 66)}`, blockNumber: Math.floor(Math.random() * 1000000) + 18000000, timestamp: new Date(), status: "confirmed" })
+          addEvent({ id: createId(), swapId: order.id.toString(), type: "swap_completed", user: userIdentity?.address || '', amount: Number.parseFloat("1"), token, txHash: `0x${Math.random().toString(16).substring(2, 66)}`, blockNumber: Math.floor(Math.random() * 1000000) + 18000000, timestamp: new Date(), status: "confirmed" })
         }
       }, 2000)
     }, 800)
@@ -399,7 +535,7 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
   }
 
   const handleSendMessage = (text: string) => {
-    const newMessage: SwapMessage = { id: messageCount + 1, type: "message", sender: userIdentity.identity, timestamp: new Date(), message: text, status: "success" }
+    const newMessage: SwapMessage = { id: messageCount + 1, type: "message", sender: userIdentity?.identity || 'Unknown', timestamp: new Date(), message: text, status: "success" }
     setMessages((prev) => [...prev, newMessage])
     setMessageCount((prev) => prev + 1)
   }
@@ -415,9 +551,10 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
     try {
       setIsWithdrawing(true)
       if (!counterpartyIdentity || !fetchedLeaves) return
-      const { proof, publicInputs } = await createProofA(secretKey, [counterpartyIdentity?.pubKeyX, counterpartyIdentity?.pubKeyY], keccak256(order.id), hashlockNonce, fetchedLeaves);
+      const { proof, publicInputs } = await createProofA(secretKey, [counterpartyIdentity?.pubKeyX, counterpartyIdentity?.pubKeyY], order.id.toString(), hashlockNonce, fetchedLeaves);
       console.log("Generated proof for Initiator withdrawal:", proof, publicInputs)
       // proof should be bytes; assume the UI provides hex string (0x...)
+      // orderIdHash is already a stringified version of order.id
       const args = [proof, publicInputs[1], publicInputs[2], publicInputs[0], keccak256(stringToBytes(orderIdHash)), recipient];
       const tx = await writeContract(config, {
         abi: ztomicAbi,
@@ -429,7 +566,18 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
       setWithdrawTx(tx)
       // update UI
       setUserAWithdrawn(true)
-      addEvent({ id: createId(), swapId: order.id, type: 'withdrawal', user: userIdentity.address, amount: order.amount, token: order.fromToken, txHash: tx as any, blockNumber: Math.floor(Math.random() * 1000000) + 18000000, timestamp: new Date(), status: 'pending' })
+      addEvent({ 
+        id: createId(), 
+        swapId: String(order.id), 
+        type: 'withdrawal', 
+        user: userIdentity.address, 
+        amount: parseFloat(String(order.amount)) || 0,  // Ensure we always have a valid number
+        token: order.fromToken, 
+        txHash: tx as any, 
+        blockNumber: Math.floor(Math.random() * 1000000) + 18000000, 
+        timestamp: new Date(), 
+        status: 'pending' 
+      })
       setMessages((prev) => [...prev, { id: messageCount + 1, type: 'event', timestamp: new Date(), message: 'Initiator withdrawal submitted', status: 'pending' }])
       setMessageCount((prev) => prev + 1)
     } catch (err) {
@@ -453,19 +601,17 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
         return
 
       // Convert order ID to a field-compatible value
-      const orderIdBigInt = BigInt(order.id);
-      const fieldModulus = BigInt("21888242871839275222246405745257275088548364400416034343698204186575808495617");
-      const orderIdField = orderIdBigInt % fieldModulus;
-      
-      const {proof, publicInputs} = await createProofB(
+    const orderIdBigInt = BigInt(order.id.toString());
+    const fieldModulus = BigInt("21888242871839275222246405745257275088548364400416034343698204186575808495617");
+    const orderIdField = orderIdBigInt % fieldModulus;
+    
+    const {proof, publicInputs} = await createProofB(
         secret, 
         [initiatorIdentity.pubKeyX, initiatorIdentity.pubKeyY], 
         orderIdField.toString(), 
         nonce_responder, 
         leaves
-      );
-
-      const args = [proof, publicInputs[0], publicInputs[1], "0x0af700A3026adFddC10f7Aa8Ba2419e8503592f7"]
+      );      const args = [proof, publicInputs[0], publicInputs[1], "0x0af700A3026adFddC10f7Aa8Ba2419e8503592f7"]
       const tx = await writeContract(config, {
         abi: ztomicAbi,
         address: '0x63DFD07e625736bd20C62BD882e5D3475d8E0297' as Address,
@@ -475,7 +621,7 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
       console.log('withdraw_responder tx:', tx)
       setWithdrawTx(tx)
       setUserBWithdrawn(true)
-      addEvent({ id: createId(), swapId: order.id, type: 'withdrawal', user: userIdentity.address, amount: order.amount, token: order.toToken, txHash: tx as any, blockNumber: Math.floor(Math.random() * 1000000) + 18000000, timestamp: new Date(), status: 'pending' })
+      addEvent({ id: createId(), swapId: order.id.toString(), type: 'withdrawal', user: userIdentity?.address || '', amount: parseFloat(order.amount) || 0, token: order.toToken, txHash: tx as any, blockNumber: Math.floor(Math.random() * 1000000) + 18000000, timestamp: new Date(), status: 'pending' })
       setMessages((prev) => [...prev, { id: messageCount + 1, type: 'event', timestamp: new Date(), message: 'Responder withdrawal submitted', status: 'pending' }])
       setMessageCount((prev) => prev + 1)
     } catch (err) {
@@ -489,6 +635,43 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
     if (counterpartyStatus === "loading") return "Loading..."
     if (counterpartyStatus === "error") return "Unknown"
     return counterpartyIdentity?.userName || "Unknown"
+  }
+
+  // Error handling
+  if (fetchError) {
+    return (
+      <Card className="border border-red-500/20 bg-red-500/10 p-6">
+        <div className="text-center">
+          <h3 className="text-lg font-semibold text-red-700 dark:text-red-400">Failed to Load Swap Details</h3>
+          <p className="text-sm text-red-600 dark:text-red-500 mt-2">
+            Unable to retrieve the swap information. Please try refreshing the page.
+          </p>
+          <Button 
+            variant="outline" 
+            className="mt-4"
+            onClick={() => {
+              setRetryCount(0);
+              setFetchError(false);
+              fetchIntents();
+            }}
+          >
+            Retry Loading
+          </Button>
+        </div>
+      </Card>
+    );
+  }
+
+  // Loading state
+  if (!currentOrder) {
+    return (
+      <Card className="border border-border bg-card p-6">
+        <div className="text-center">
+          <h3 className="text-lg font-semibold text-foreground mb-2">Loading Swap Details</h3>
+          <p className="text-sm text-muted-foreground">Please wait while we fetch the latest information...</p>
+        </div>
+      </Card>
+    );
   }
 
   return (
@@ -539,7 +722,7 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
             <DepositSection
               title="Your Deposit"
               token={order.fromToken}
-              amount={order.amount}
+                amount={parseFloat(order.amount) || 0}
               isUserDeposit={true}
               hasDeposited={userADeposited}
               onDeposit={handleDeposit}
@@ -554,7 +737,7 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
             <DepositSectionCounterparty
               title="Your Deposit"
               token={order.toToken}
-              amount={order.amount}
+                amount={parseFloat(order.amount) || 0}
               isUserDeposit={true}
               hasDeposited={userBDeposited}
               onDeposit={handleDepositCounterparty}
@@ -571,14 +754,14 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
               <WithdrawSection
                 title="Withdraw (Initiator)"
                 token={order.fromToken}
-                amount={order.amount}
+                amount={parseFloat(order.amount) || 0}
                 isUserWithdraw={true}
                 hasWithdrawn={userAWithdrawn}
                 onWithdraw={handleWithdrawInitiator}
                 isLoading={isWithdrawing}
                 counterpartyName={getCounterpartyName()}
                 orderId={order.id}
-                recipient={userIdentity.address}
+                recipient={userIdentity?.address || ''}
               />
             </div>
           )}
@@ -588,14 +771,14 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
               <WithdrawSectionCounterparty
                 title="Withdraw (Responder)"
                 token={order.toToken}
-                amount={order.amount}
+                amount={parseFloat(order.amount) || 0}
                 isUserWithdraw={true}
                 hasWithdrawn={userBWithdrawn}
                 onWithdraw={handleWithdrawResponder}
                 isLoading={isWithdrawing}
                 counterpartyName={getCounterpartyName()}
                 orderId={order.id}
-                recipient={userIdentity.address}
+                recipient={userIdentity?.address || ''}
               />
             </div>
           )}

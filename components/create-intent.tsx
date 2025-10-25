@@ -17,7 +17,7 @@ export default function CreateIntent({ onIntentCreated, userIdentity }: CreateIn
   const [toToken, setToToken] = useState("zUSDT")
   const [amount, setAmount] = useState("1")
   const [isLoading, setIsLoading] = useState(false)
-  const [selectedIntentId, setSelectedIntentId] = useState<string | null>(null)
+  const [selectedIntentId, setSelectedIntentId] = useState<number | null>(null)
   const [showCounterpartySelection, setShowCounterpartySelection] = useState(false)
 
   const addIntent = useIntentStore((state) => state.addIntent)
@@ -30,41 +30,40 @@ export default function CreateIntent({ onIntentCreated, userIdentity }: CreateIn
     setIsLoading(true)
     try {
       const intent = {
-        id: Math.random().toString(),
         initiator: userIdentity.identity,
         initiatorAddress: userIdentity.address,
         fromToken,
         toToken,
         amount: Number.parseFloat(amount),
         status: "pending" as const,
-        createdAt: new Date().toISOString(),
         interestedParties: [],
       }
 
-      console.log("intent create with od", intent);
+      console.log("Creating intent:", intent);
 
-      addIntent(intent)
-      setSelectedIntentId(intent.id)
+      const response = await fetch("/api/intents", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(intent),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to create intent");
+      }
+
+      const savedIntent = await response.json();
+      addIntent(savedIntent)
+      setSelectedIntentId(savedIntent.id)
       setShowCounterpartySelection(true)
       setIsLoading(false)
-
-      // const response = await fetch("/api/intents", {
-      //   method: "POST",
-      //   headers: {
-      //     "Content-Type": "application/json",
-      //   },
-      //   body: JSON.stringify(intent),
-      // });
-
-      // if (!response.ok) {
-      //   throw new Error("Failed to create intent");
-      // }
     } catch (e) {
       console.error(e);
     }
   }
 
-  const handleSelectCounterparty = (intentId: string, counterpartyId: string) => {
+  const handleSelectCounterparty = (intentId: number, counterpartyId: string) => {
     selectCounterparty(intentId, counterpartyId)
     const selectedIntent = intents.find((i) => i.id === intentId)
     if (selectedIntent) {
@@ -142,7 +141,7 @@ export default function CreateIntent({ onIntentCreated, userIdentity }: CreateIn
                       <div className="text-sm font-semibold text-foreground mb-1">
                         {intent.amount} {intent.fromToken} → {intent.toToken}
                       </div>
-                      <div className="text-xs text-muted-foreground">ID: {intent.id.substring(0, 8)}</div>
+                      <div className="text-xs text-muted-foreground">ID: {intent.id.toString()}</div>
                     </div>
                     <div className="text-xs font-semibold text-foreground bg-secondary px-2 py-1 rounded">
                       {intent.status}

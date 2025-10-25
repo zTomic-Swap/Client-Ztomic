@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
-import { readIntents, writeIntents } from "@/app/lib/data";
-import { Intent } from "@/app/lib/types";
 
-// Define the type for the context object
+const EXTERNAL_API = process.env.EXTERNAL_API_URL;
+if (!EXTERNAL_API) {
+  throw new Error("EXTERNAL_API_URL is not configured");
+}
+
 interface RouteContext {
   params: {
     id: string;
@@ -10,21 +12,14 @@ interface RouteContext {
 }
 
 /**
- * GET: Retrieve a single intent by ID
+ * GET: Proxy single intent retrieval to external API
  */
 export async function GET(request: Request, context: RouteContext) {
   try {
-    // Access params *after* the first await
-    const intents = await readIntents();
     const { id } = context.params;
-
-    const intent = intents.find((i) => i.id === id);
-
-    if (!intent) {
-      return NextResponse.json({ error: "Intent not found" }, { status: 404 });
-    }
-
-    return NextResponse.json(intent);
+    const res = await fetch(`${EXTERNAL_API}/intents/${encodeURIComponent(id)}`);
+    const data = await res.json();
+    return NextResponse.json(data, { status: res.status });
   } catch (error) {
     return NextResponse.json(
       { error: (error as Error).message },
@@ -34,32 +29,19 @@ export async function GET(request: Request, context: RouteContext) {
 }
 
 /**
- * PUT: Update a single intent by ID
+ * PUT: Proxy intent update to external API
  */
 export async function PUT(request: Request, context: RouteContext) {
   try {
-    // Access params *after* the first await
-    const updates = (await request.json()) as Partial<Intent>;
     const { id } = context.params;
-
-    const intents = await readIntents();
-    const intentIndex = intents.findIndex((i) => i.id === id);
-
-    if (intentIndex === -1) {
-      return NextResponse.json({ error: "Intent not found" }, { status: 404 });
-    }
-
-    // Update the intent
-    const updatedIntent = {
-      ...intents[intentIndex],
-      ...updates,
-      id: id, // Ensure the ID cannot be changed via the body
-    };
-
-    intents[intentIndex] = updatedIntent;
-    await writeIntents(intents);
-
-    return NextResponse.json(updatedIntent);
+    const body = await request.json();
+    const res = await fetch(`${EXTERNAL_API}/intents/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    return NextResponse.json(data, { status: res.status });
   } catch (error) {
     return NextResponse.json(
       { error: (error as Error).message },
@@ -69,23 +51,16 @@ export async function PUT(request: Request, context: RouteContext) {
 }
 
 /**
- * DELETE: Delete a single intent by ID
+ * DELETE: Proxy intent deletion to external API
  */
 export async function DELETE(request: Request, context: RouteContext) {
   try {
-    // Access params *after* the first await
-    const intents = await readIntents();
     const { id } = context.params;
-
-    const newIntents = intents.filter((i) => i.id !== id);
-
-    if (intents.length === newIntents.length) {
-      return NextResponse.json({ error: "Intent not found" }, { status: 404 });
-    }
-
-    await writeIntents(newIntents);
-
-    return NextResponse.json({ message: "Intent deleted" }, { status: 200 });
+    const res = await fetch(`${EXTERNAL_API}/intents/${encodeURIComponent(id)}`, {
+      method: "DELETE"
+    });
+    const data = await res.json();
+    return NextResponse.json(data, { status: res.status });
   } catch (error) {
     return NextResponse.json(
       { error: (error as Error).message },

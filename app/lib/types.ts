@@ -1,5 +1,5 @@
 export interface Intent {
-  id: string;
+  id: number;
   initiator: string;
   initiatorAddress: string;
   fromToken: string;

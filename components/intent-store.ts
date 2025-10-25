@@ -2,7 +2,7 @@ import { create } from "zustand";
 
 // 1. Use the same interface from your API lib
 export interface Intent {
-  id: string;
+  id: number;
   initiator: string;
   initiatorAddress: string;
   fromToken: string;
@@ -19,13 +19,15 @@ interface IntentStore {
   intents: Intent[];
   isLoading: boolean;
   error: string | null;
+  lastUpdate: number;
+  isFetching: boolean;
   fetchIntents: () => Promise<void>;
   addIntent: (newIntentData: Omit<Intent, "id" | "createdAt" | "status" | "interestedParties">) => Promise<Intent | undefined>;
-  updateIntent: (id: string, updates: Partial<Intent>) => Promise<void>;
-  addInterest: (intentId: string, userId: string) => Promise<void>;
-  selectCounterparty: (intentId: string, counterpartyId: string) => Promise<void>;
+  updateIntent: (id: number, updates: Partial<Intent>) => Promise<void>;
+  addInterest: (intentId: number, userId: string) => Promise<void>;
+  selectCounterparty: (intentId: number, counterpartyId: string) => Promise<void>;
   getUserIntents: (userId: string) => Intent[];
-  getIntentById: (id: string) => Intent | undefined;
+  getIntentById: (id: number) => Intent | undefined;
 }
 
 // 3. Create the store with API logic
@@ -33,19 +35,29 @@ export const useIntentStore = create<IntentStore>((set, get) => ({
   intents: [], // Start with an empty array
   isLoading: false,
   error: null,
+  lastUpdate: 0,
+  isFetching: false,
 
   /**
    * GET: Fetch all intents from the API
    */
   fetchIntents: async () => {
-    set({ isLoading: true, error: null });
+    const state = get();
+    // Prevent multiple simultaneous fetches
+    if (state.isFetching) return;
+    
+    // Only fetch if 2 seconds have passed since last update
+    const now = Date.now();
+    if (now - state.lastUpdate < 2000) return;
+
+    set({ isFetching: true, error: null });
     try {
       const response = await fetch("/api/intents");
       if (!response.ok) throw new Error("Failed to fetch intents");
       const intents: Intent[] = await response.json();
-      set({ intents, isLoading: false });
+      set({ intents, isLoading: false, lastUpdate: now, isFetching: false });
     } catch (e) {
-      set({ error: (e as Error).message, isLoading: false });
+      set({ error: (e as Error).message, isLoading: false, isFetching: false });
     }
   },
 
@@ -63,9 +75,10 @@ export const useIntentStore = create<IntentStore>((set, get) => ({
       
       const createdIntent: Intent = await response.json();
       
-      // Add the new intent to the local state
+      // Add the new intent to the local state and update timestamp
       set((state) => ({
         intents: [createdIntent, ...state.intents],
+        lastUpdate: Date.now()
       }));
       return createdIntent;
     } catch (e) {
@@ -77,7 +90,7 @@ export const useIntentStore = create<IntentStore>((set, get) => ({
   /**
    * PUT: Update a generic intent
    */
-  updateIntent: async (id, updates) => {
+  updateIntent: async (id: number, updates) => {
     try {
       const response = await fetch(`/api/intents/${id}`, {
         method: "PUT",
@@ -88,11 +101,12 @@ export const useIntentStore = create<IntentStore>((set, get) => ({
       
       const updatedIntent: Intent = await response.json();
 
-      // Update the intent in the local state
+      // Update the intent in the local state and update timestamp
       set((state) => ({
         intents: state.intents.map((intent) =>
           intent.id === id ? updatedIntent : intent
         ),
+        lastUpdate: Date.now()
       }));
     } catch (e) {
       set({ error: (e as Error).message });
@@ -102,7 +116,7 @@ export const useIntentStore = create<IntentStore>((set, get) => ({
   /**
    * PUT: Specific update for adding/removing interest
    */
-  addInterest: async (intentId, userId) => {
+  addInterest: async (intentId: number, userId: string) => {
     const state = get();
     const intent = state.intents.find((i) => i.id === intentId);
     if (!intent) return;
@@ -119,7 +133,7 @@ export const useIntentStore = create<IntentStore>((set, get) => ({
   /**
    * PUT: Specific update for selecting a counterparty
    */
-  selectCounterparty: async (intentId, counterpartyId) => {
+  selectCounterparty: async (intentId: number, counterpartyId: string) => {
     const state = get();
     // Call the generic update function with the specific payload
     await state.updateIntent(intentId, {
@@ -129,12 +143,12 @@ export const useIntentStore = create<IntentStore>((set, get) => ({
   },
 
   // --- Selector functions (no change needed) ---
-  getUserIntents: (userId) => {
+  getUserIntents: (userId: string) => {
     const state = get();
     return state.intents.filter((intent) => intent.initiator === userId);
   },
 
-  getIntentById: (id) => {
+  getIntentById: (id: number) => {
     const state = get();
     return state.intents.find((intent) => intent.id === id);
   },
