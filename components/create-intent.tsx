@@ -30,7 +30,7 @@ export default function CreateIntent({ onIntentCreated, userIdentity }: CreateIn
     setIsLoading(true)
     try {
       const intent = {
-        id: Math.random().toString(36).substring(7),
+        id: Math.random().toString(),
         initiator: userIdentity.identity,
         initiatorAddress: userIdentity.address,
         fromToken,
@@ -40,6 +40,8 @@ export default function CreateIntent({ onIntentCreated, userIdentity }: CreateIn
         createdAt: new Date().toISOString(),
         interestedParties: [],
       }
+
+      console.log("intent create with od", intent);
 
       addIntent(intent)
       setSelectedIntentId(intent.id)

@@ -15,13 +15,14 @@ import { watchContractEvent, writeContract } from "@wagmi/core"
 import { type Address, type Hash, type Abi, keccak256, stringToBytes } from 'viem';
 import { config } from "../wagmi"
 import ztomicAbiJson from "../abi/ztomic.json"
-import { type DepositedInitiatorLog } from "./eventTypes";
+import { type DepositedInitiatorLog, type withdrawalResponderLog } from "./eventTypes";
 import WithdrawSection from "@/components/withdraw-section"
 import WithdrawSectionCounterparty from "@/components/withdraw-section-counterparty"
 // import { createSharedSecret } from "../context/createSecret"
 import { generateCommitmentA } from "@/context/createCommitmentA"
 import { generateCommitmentB } from "@/context/createCommitmentB"
 import { createProofA } from "@/context/createProofA";
+import { createProofB } from "@/context/createProofB";
 import { deriveCommitmentB } from "@/context/reconstructBCommitmentForA"
 
 
@@ -65,7 +66,7 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
 
   const [eventLogs_depositInitiator, setEventLogs_depositInitiator] = useState<DepositedInitiatorLog[]>([]);
   const [eventLogs_depositResponder, setEventLogs_depositResponder] = useState<DepositedInitiatorLog[]>([]);
-  const [eventLogs_withdrawInitiator, setEventLogs_withdrawInitiator] = useState<DepositedInitiatorLog[]>([]);
+  const [eventLogs_withdrawInitiator, setEventLogs_withdrawInitiator] = useState<withdrawalResponderLog[]>([]);
 
   const [depositTx, setDepositTx] = useState<any>(null);
   const [hashlock_responder, setHashlock_responder] = useState<string | null>("");
@@ -77,7 +78,8 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
 
   const [hashlock_initiator, setHashlock_initiator] = useState<string | null>("");
   const [secretKey_initiator, setSecretKey_initiator] = useState<string | null>("");
-  const [commitment_counterparty, setCommitment_counterparty] = useState<string | null>("");  
+  const [commitment_counterparty, setCommitment_counterparty] = useState<string | null>("");
+  const [nonce_responder, setNonce_responder] = useState<string | null>("");
 
 
   const addDeposit = useEventMonitor((state) => state.addDeposit)
@@ -85,9 +87,9 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
 
   useEffect(() => {
     decodeCounterPartyDepositLogs();
-  }, [eventLogs_depositInitiator])
+  }, [eventLogs_depositInitiator,eventLogs_withdrawInitiator,eventLogs_depositResponder])
 
-  
+
 
   async function decodeCounterPartyDepositLogs() {
 
@@ -112,10 +114,24 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
       }
       )
 
+      eventLogs_withdrawInitiator.forEach((log) => {
+        const decoded = {
+          _order_id_hash: log.args._order_id_hash,
+          hashlock_nonce: log.data
+        };
+
+        if (log.args._order_id_hash === keccak256(stringToBytes(order.id))) {
+          setNonce_responder(log.data)
+        }
+
+        console.log("Decoded Counterparty Deposit Log:", decoded);
+      }
+      )
+
     }
 
-    if( userRole === "initiator") {
-      eventLogs_depositResponder.forEach(async(log) => {
+    if (userRole === "initiator") {
+      eventLogs_depositResponder.forEach(async (log) => {
         const decoded = {
           oprder_id_hash: log.args._order_id_hash,
           commitment: log.args._commitment,
@@ -125,18 +141,18 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
           leafIndex: log.args.leafIndex,
           ccipMessageId: log.args.ccipMessageId
         };
-        const derivedCommitmentFromLogs = await deriveCommitmentB([counterpartyIdentity!.pubKeyX, counterpartyIdentity!.pubKeyY], secretKey_initiator!, hashlock_initiator! )
-        if( decoded.commitment === derivedCommitmentFromLogs.commitment) {
+        const derivedCommitmentFromLogs = await deriveCommitmentB([counterpartyIdentity!.pubKeyX, counterpartyIdentity!.pubKeyY], secretKey_initiator!, hashlock_initiator!)
+        if (decoded.commitment === derivedCommitmentFromLogs.commitment) {
           setCommitment_counterparty(decoded.commitment);
-        console.log("Decoded responsed Deposit Log:", decoded);
+          console.log("Decoded responsed Deposit Log:", decoded);
 
+        }
       }
-    }
-    )
-      
-  }
+      )
 
-}
+    }
+
+  }
 
   useEffect(() => {
     const unwatchDespositInitiator = watchContractEvent(config, {
@@ -171,13 +187,14 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
     const unwatchWithdrawInitiator = watchContractEvent(config, {
       address: '0x63DFD07e625736bd20C62BD882e5D3475d8E0297',
       abi: ztomicAbi,
-      eventName: 'withdraw_initiator',
+      eventName: 'withdrawal_initiator',
       onLogs(logs) {
         console.log('New logs!', logs);
         setEventLogs_withdrawInitiator(prevLogs => [
           ...prevLogs,
-          ...(logs as unknown as DepositedInitiatorLog[])
+          ...(logs as unknown as withdrawalResponderLog[])
         ]);
+
       },
     });
 
@@ -335,50 +352,50 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
   }
 
   const handleDepositCounterparty = async (amount: string, secret: string, hashlock: string) => {
-    // if (hashlock_responder) {
-      const commitmentB = await generateCommitmentB([initiatorIdentity!.pubKeyX, initiatorIdentity!.pubKeyY], secret, "0x20828db891c6769e4815ef92044766cf1b4e250c75cae67afb5dae1e2747ccb2");
+    if (hashlock_responder) {
+    const commitmentB = await generateCommitmentB([initiatorIdentity!.pubKeyX, initiatorIdentity!.pubKeyY], secret, hashlock_responder);
 
-      const depositTx = await writeContract(config, {
-        abi: ztomicAbi,
-        address: '0x63DFD07e625736bd20C62BD882e5D3475d8E0297' as Address,
-        functionName: 'deposit_responder',
-        args: [commitmentB.commitment, false, "0x0af700A3026adFddC10f7Aa8Ba2419e8503592f7"]
-      })
-      console.log("Counterparty Deposit transaction sent:", depositTx);
-      setDepositTx(depositTx);
-      setIsDepositing(true)
+    const depositTx = await writeContract(config, {
+      abi: ztomicAbi,
+      address: '0x63DFD07e625736bd20C62BD882e5D3475d8E0297' as Address,
+      functionName: 'deposit_responder',
+      args: [commitmentB.commitment, false, "0x0af700A3026adFddC10f7Aa8Ba2419e8503592f7"]
+    })
+    console.log("Counterparty Deposit transaction sent:", depositTx);
+    setDepositTx(depositTx);
+    setIsDepositing(true)
+
+    setTimeout(() => {
+      const depositId = createId()
+      const txHash = depositTx
+      const token = userRole === "initiator" ? order.fromToken : order.toToken
+      const user = userRole === "initiator" ? order.initiatorAddress : userIdentity.address
+
+      const depositRecord: DepositRecord = { id: depositId, swapId: order.id, user, token, amount: Number.parseFloat("1"), txHash, timestamp: new Date(), status: "confirmed" }
+      addDeposit(depositRecord)
+      addEvent({ id: createId(), swapId: order.id, type: "deposit", user, amount: Number.parseFloat("1"), token, txHash, blockNumber: Math.floor(Math.random() * 1000000) + 18000000, timestamp: new Date(), status: "pending" })
+
+      const newMessage: SwapMessage = { id: messageCount + 1, type: "deposit", sender: userRole === "initiator" ? "You (Initiator)" : "You (Counterparty)", timestamp: new Date(), message: `Deposited ${"1"} ${token}`, status: "success" }
+      setMessages((prev) => [...prev, newMessage])
+      setMessageCount((prev) => prev + 1)
+
+      if (userRole === "initiator") setUserADeposited(true)
+      else setUserBDeposited(true)
+
+      setIsDepositing(false)
 
       setTimeout(() => {
-        const depositId = createId()
-        const txHash = depositTx
-        const token = userRole === "initiator" ? order.fromToken : order.toToken
-        const user = userRole === "initiator" ? order.initiatorAddress : userIdentity.address
-
-        const depositRecord: DepositRecord = { id: depositId, swapId: order.id, user, token, amount: Number.parseFloat(amount), txHash, timestamp: new Date(), status: "confirmed" }
-        addDeposit(depositRecord)
-        addEvent({ id: createId(), swapId: order.id, type: "deposit", user, amount: Number.parseFloat(amount), token, txHash, blockNumber: Math.floor(Math.random() * 1000000) + 18000000, timestamp: new Date(), status: "pending" })
-
-        const newMessage: SwapMessage = { id: messageCount + 1, type: "deposit", sender: userRole === "initiator" ? "You (Initiator)" : "You (Counterparty)", timestamp: new Date(), message: `Deposited ${amount} ${token}`, status: "success" }
-        setMessages((prev) => [...prev, newMessage])
-        setMessageCount((prev) => prev + 1)
-
-        if (userRole === "initiator") setUserADeposited(true)
-        else setUserBDeposited(true)
-
-        setIsDepositing(false)
-
-        setTimeout(() => {
-          const bothDeposited = (userRole === "initiator" && userBDeposited) || (userRole === "counterparty" && userADeposited)
-          if (bothDeposited) {
-            setSwapStatus("completed")
-            const completionMessage: SwapMessage = { id: messageCount + 2, type: "event", timestamp: new Date(), message: "Swap completed successfully! Tokens exchanged.", status: "success" }
-            setMessages((prev) => [...prev, completionMessage])
-            setMessageCount((prev) => prev + 1)
-            addEvent({ id: createId(), swapId: order.id, type: "swap_completed", user: userIdentity.address, amount: Number.parseFloat(amount), token, txHash: `0x${Math.random().toString(16).substring(2, 66)}`, blockNumber: Math.floor(Math.random() * 1000000) + 18000000, timestamp: new Date(), status: "confirmed" })
-          }
-        }, 2000)
-      }, 800)
-    // }
+        const bothDeposited = (userRole === "initiator" && userBDeposited) || (userRole === "counterparty" && userADeposited)
+        if (bothDeposited) {
+          setSwapStatus("completed")
+          const completionMessage: SwapMessage = { id: messageCount + 2, type: "event", timestamp: new Date(), message: "Swap completed successfully! Tokens exchanged.", status: "success" }
+          setMessages((prev) => [...prev, completionMessage])
+          setMessageCount((prev) => prev + 1)
+          addEvent({ id: createId(), swapId: order.id, type: "swap_completed", user: userIdentity.address, amount: Number.parseFloat("1"), token, txHash: `0x${Math.random().toString(16).substring(2, 66)}`, blockNumber: Math.floor(Math.random() * 1000000) + 18000000, timestamp: new Date(), status: "confirmed" })
+        }
+      }, 2000)
+    }, 800)
+    }
   }
 
   const handleSendMessage = (text: string) => {
@@ -423,14 +440,21 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
   }
 
   const handleWithdrawResponder = async (
-    proof: string,
-    nullifierHash: string,
-    root: string,
-    recipient?: string
+   secret: string,
+   leaves: Hash[]
   ) => {
     try {
       setIsWithdrawing(true)
-      const args = [proof, nullifierHash, root, recipient || userIdentity.address]
+
+
+      // const args = [proof, nullifierHash, root, recipient || userIdentity.address]
+
+      if(!initiatorIdentity || !nonce_responder)
+        return
+
+      const {proof, publicInputs} = await createProofB(secret, [initiatorIdentity.pubKeyX, initiatorIdentity.pubKeyY], keccak256(order.id), nonce_responder, leaves);
+
+      const args = [proof, publicInputs[0], publicInputs[1], "0x0af700A3026adFddC10f7Aa8Ba2419e8503592f7"]
       const tx = await writeContract(config, {
         abi: ztomicAbi,
         address: '0x63DFD07e625736bd20C62BD882e5D3475d8E0297' as Address,
@@ -531,7 +555,7 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
           )}
 
           {/* Withdraw sections: show after deposits or when appropriate */}
-          { commitment_counterparty && userRole === "initiator" && (
+          {commitment_counterparty && userRole === "initiator" && (
             <div className="mt-4">
               <WithdrawSection
                 title="Withdraw (Initiator)"
@@ -548,7 +572,7 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
             </div>
           )}
 
-          {userRole === "counterparty" && (
+          {nonce_responder && userRole === "counterparty" && (
             <div className="mt-4">
               <WithdrawSectionCounterparty
                 title="Withdraw (Responder)"

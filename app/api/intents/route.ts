@@ -25,10 +25,12 @@ export async function POST(request: Request) {
   try {
     const body = (await request.json()) as Omit<Intent, "id" | "createdAt">;
 
+     const newId = Math.floor(Math.random() * 1000001);
+
     // Create a full new intent object
     const newIntent: Intent = {
       ...body,
-      id: `order-${randomUUID()}`, // Generate a new ID
+      id: newId.toString(), // Generate a new ID
       createdAt: new Date().toISOString(),
       status: "pending", // Ensure default status
       interestedParties: [], // Ensure default

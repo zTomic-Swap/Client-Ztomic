@@ -4,38 +4,32 @@ import { PoseidonTree, ZERO_VALUES } from "./merkleTree.js";
 import { Noir, type CompiledCircuit } from "@noir-lang/noir_js";
 import { Base8, mulPointEscalar } from "@zk-kit/baby-jubjub";
 import { fileURLToPath } from "url";
-import CircuitA from "../circuits/CircuitA.json";
+// 1. IMPORT BOB'S CIRCUIT
+import CircuitB from "../circuits/CircuitB.json";
 import path from "path";
 import fs from "fs";
 
 // Load Circuit
-// const __filename = fileURLToPath(import.meta.url);
-// const __dirname = path.dirname(__filename);
-// const circuit = JSON.parse(
-//   fs.readFileSync(
-//     path.resolve(__dirname, "../../Circuits-Noir/target/circuit_alice.json"),
-//     "utf8"
-//   )
-// );
-const circuit = CircuitA as CompiledCircuit;
+const circuit = CircuitB as CompiledCircuit;
+
 /**
- * Generates Alice's proof for the swap.
+ * Generates Bob's proof for the swap.
  *
- * @param secretKeyParty - Alice's secret key.
- * @param publicKeyCounterparty - Bob's public key [x, y].
+ * @param secretKeyParty - Bob's secret key.
+ * @param publicKeyCounterparty - Alice's public key [x, y].
  * @param orderId - The order ID.
  * @param hashlockNonce - The nonce used for the hashlock.
  * @param leaves - An array of commitment strings to build the Merkle tree.
  * @returns A promise resolving to an object with the proof and public inputs.
  */
-export async function createProofA(
-  secretKeyParty: string, // Alice's secret key
-  publicKeyCounterparty: [string, string], // Bob's public key
+export async function createProofB(
+  secretKeyParty: string, // Bob's secret key
+  publicKeyCounterparty: [string, string], // Alice's public key
   orderId: string,
   hashlockNonce: string,
   leaves: string[]
 ): Promise<{ proof: string; publicInputs: string[] }> {
-
+  
   // --- Input Guard Clauses ---
   if (!secretKeyParty) throw new Error("Invalid 'secretKeyParty' parameter.");
   if (
@@ -51,21 +45,21 @@ export async function createProofA(
 
   // Initialize Barretenberg
   const bb = await Barretenberg.new();
-
-  console.log("order id in proof generation", orderId);
+  
+  console.log("order id in proof generation (Bob)", orderId);
   try {
     // --- 1. Convert Inputs ---
-    const alice_sk = BigInt(secretKeyParty);
-    const bob_pk_point: [bigint, bigint] = [
+    const bob_sk = BigInt(secretKeyParty);
+    const alice_pk_point: [bigint, bigint] = [
       BigInt(publicKeyCounterparty[0]),
       BigInt(publicKeyCounterparty[1]),
     ];
-    const order_id_bigint = BigInt(orderId);
-    const order_id_mod = order_id_bigint % Fr.MODULUS;
-    const order_id_fr = new Fr(order_id_mod);
-
+    console.log("alice public key", publicKeyCounterparty);
+    const order_id_fr = new Fr(BigInt(orderId));
     const nonce_fr = new Fr(BigInt(hashlockNonce));
-    const bob_pk_x_fr = new Fr(bob_pk_point[0]);
+    console.log("hashlock nonce (orig)",hashlockNonce)
+    console.log("hashlock nonce Fr", nonce_fr.toString());
+    const alice_pk_x_fr = new Fr(alice_pk_point[0]);
 
     // --- 2. Build Merkle Tree ---
     const tree = new PoseidonTree(20, ZERO_VALUES);
@@ -78,39 +72,44 @@ export async function createProofA(
 
     console.log("Merkle Tree initialized with root:", tree.root().toString());
 
-    // --- 3. Calculate Secrets and Commitments ---
-    const shared_secret = mulPointEscalar(bob_pk_point, alice_sk);
+    // --- 3. Calculate Secrets and Commitments (Must match Noir logic) ---
+
+    // Derive Bob's public key (needed for hashlock)
+    // Base8 is the BabyJubJub generator point
+    console.log("bob secrey key imput", bob_sk);
+    const bob_pk_point = mulPointEscalar(Base8, bob_sk);
+    const bob_pk_x_fr = new Fr(bob_pk_point[0]);
+
+    // Derive shared secret
+    const shared_secret = mulPointEscalar(alice_pk_point, bob_sk);
     const shared_secret_x = shared_secret[0];
     const shared_secret_x_fr = new Fr(shared_secret_x);
-
-    // Reconstruct hashlock (Bob_PK_x, nonce)
+    console.log("shared secret",shared_secret_x.toString())
+    // Reconstruct hashlock (Bob_PK_x, nonce) - Matches Noir line 31
     const reconstructed_hash_lock_fr = await bb.poseidon2Hash([
       bob_pk_x_fr,
       nonce_fr,
     ]);
 
-    const derived_commitment = await bb.poseidon2Hash([reconstructed_hash_lock_fr, shared_secret_x_fr])
+    console.log("reconstrcuted hashlock",reconstructed_hash_lock_fr.toString());
 
-    // Compute nullifier (shared_secret_x, Bob_PK_x, order_id)
-    const computed_nullifier_fr = await bb.poseidon2Hash([
+    // Derive commitment (hash_lock, shared_secret_x) - Matches Noir line 33
+    const derived_commitment_fr = await bb.poseidon2Hash([
+      reconstructed_hash_lock_fr,
       shared_secret_x_fr,
-      bob_pk_x_fr,
-      order_id_fr,
     ]);
 
-    // const hashlock_hash = await bb.poseidon2Hash([reconstructed_hash_lock_fr]);
-
-    // Derive commitment (hash_lock, shared_secret_x)
-    // const derived_commitment_fr = await bb.poseidon2Hash([
-    //   hashlock_hash,
-    //   shared_secret_x_fr,
-    // ]);
-
-    // console.log("derived_commitment_fr:", derived_commitment_fr.toString());
+    // Compute nullifier (shared_secret_x, Alice_PK_x, order_id) - Matches Noir line 35
+    const computed_nullifier_fr = await bb.poseidon2Hash([
+      shared_secret_x_fr,
+      alice_pk_x_fr,
+      order_id_fr,
+    ]);
+    
+    console.log("Derived Commitment (Bob):", derived_commitment_fr.toString());
 
     // --- 4. Get Merkle Proof ---
-    console.log("derived Commitement", derived_commitment.toString());
-    const commitmentIndex = tree.getIndex(derived_commitment.toString());
+    const commitmentIndex = tree.getIndex(derived_commitment_fr.toString());
     if (commitmentIndex === -1) {
       throw new Error("Generated commitment not found in the Merkle tree leaves.");
     }
@@ -118,37 +117,36 @@ export async function createProofA(
     const merkleRoot = tree.root();
     console.log("Reconstructed Merkle Root:", merkleRoot.toString());
     const merkleProof = tree.proof(commitmentIndex);
-    console.log("merkle proof root ", merkleProof.root.toString())
-
-    // console.log
+    console.log("Merkle proof root ", merkleProof.root.toString())
 
 
-    // --- 5. Prepare Noir Inputs ---
+    // --- 5. Prepare Noir Inputs (Must match Noir 'main' signature) ---
     const noir = new Noir(circuit);
     const honk = new UltraHonkBackend(circuit.bytecode, { threads: 1 });
 
     const input = {
-      alice_priv_key: secretKeyParty,
-      bob_pub_key_x: publicKeyCounterparty[0],
-      bob_pub_key_y: publicKeyCounterparty[1],
-      order_id: order_id_fr.toString(),
+      bob_priv_key: secretKeyParty,
+      alice_pub_key_x: publicKeyCounterparty[0],
+      alice_pub_key_y: publicKeyCounterparty[1],
+      hash_lock_nonce: hashlockNonce,
+      order_id: orderId,
       merkle_proof: merkleProof.pathElements.map((s) => s.toString()),
-      is_even: merkleProof.pathIndices.map((i) => i % 2 == 0),
-      hash_lock_nonce: nonce_fr.toString(),
-      nullifier_hash: computed_nullifier_fr.toString(),
-      root: merkleProof.root.toString(),
+      is_even: merkleProof.pathIndices.map((i) => (i % 2 == 0)),
+      nullifier_hash: computed_nullifier_fr.toString(), // Public input
+      root: merkleProof.root.toString(),             // Public input
     };
     console.log("inputs for proof ----", input);
+    
     // --- 6. Generate Proof ---
     const { witness } = await noir.execute(input);
 
     const originalLog = console.log; // Save original
-    console.log = () => { }; // Silence logs
-
+    console.log = () => {}; // Silence logs
+    
     const { proof, publicInputs } = await honk.generateProof(witness, {
       keccak: true,
     });
-
+    
     console.log = originalLog; // Restore original
 
     // --- 7. Format and Return Output ---
@@ -161,12 +159,11 @@ export async function createProofA(
       proof: proofHex,
       publicInputs: publicInputsStrings,
     };
-
+    
   } catch (error) {
-    console.error("Error generating Alice's proof:", error);
+    console.error("Error generating Bob's proof:", error);
     throw error;
   } finally {
     await bb.destroy();
   }
 }
-

@@ -1,9 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
+import { Address, Hash } from "viem"
+import { getEvents } from '../context/useZtomicDeposits'
 
 interface WithdrawSectionProps {
   title: string
@@ -11,7 +13,7 @@ interface WithdrawSectionProps {
   amount: number
   isUserWithdraw: boolean
   hasWithdrawn: boolean
-  onWithdraw: (proof: string, nullifierHash: string, root: string, recipient?: string) => void
+  onWithdraw: (secret: string, leaves: Hash[], recipient: string) => void
   isLoading?: boolean
   counterpartyName?: string
   orderId?: string
@@ -33,11 +35,24 @@ export default function WithdrawSectionCounterparty({
   const [proof, setProof] = useState("")
   const [nullifierHash, setNullifierHash] = useState("")
   const [root, setRoot] = useState("")
-  const [recipientAddr, setRecipientAddr] = useState(recipient || "")
+  const [recipientAddr, setRecipientAddr] = useState<string>()
+  const [secret, setSecret] = useState("");
+  const [fetchedLeaves, setFetchedLeaves] = useState<Hash[]>();
+ useEffect(() => {
+handleFetchLeaves();
+
+  }, [])
+
+  const handleFetchLeaves = async () => {
+
+    const leaves = await getEvents("0x63DFD07e625736bd20C62BD882e5D3475d8E0297");
+    setFetchedLeaves(leaves);
+
+  }
 
   const handleWithdraw = () => {
-    if (!proof || !nullifierHash || !root) return
-    onWithdraw(proof, nullifierHash, root, recipientAddr)
+    if(fetchedLeaves && recipientAddr)
+    onWithdraw(secret, fetchedLeaves, recipientAddr)
   }
 
   return (
@@ -73,32 +88,32 @@ export default function WithdrawSectionCounterparty({
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-2">Withdraw Proof (hex)</label>
               <div className="flex flex-col gap-2">
-                <Input
+                {/* <Input
                   type="text"
                   placeholder={`Proof bytes (hex)`}
                   value={proof}
                   onChange={(e) => setProof(e.target.value)}
                   disabled={isLoading}
                   className="bg-secondary border-border text-foreground"
-                />
+                /> */}
 
                 <div className="grid grid-cols-2 gap-2">
                   <Input
                     type="text"
-                    placeholder={`Nullifier Hash`}
-                    value={nullifierHash}
-                    onChange={(e) => setNullifierHash(e.target.value)}
+                    placeholder={`Secret Key`}
+                    value={secret}
+                    onChange={(e) => setSecret(e.target.value)}
                     disabled={isLoading}
                     className="bg-secondary border-border text-foreground"
                   />
-                  <Input
+                  {/* <Input
                     type="text"
                     placeholder={`Merkle Root`}
                     value={root}
                     onChange={(e) => setRoot(e.target.value)}
                     disabled={isLoading}
                     className="bg-secondary border-border text-foreground"
-                  />
+                  /> */}
                 </div>
 
                 <Input
@@ -113,7 +128,7 @@ export default function WithdrawSectionCounterparty({
                 <div className="flex justify-end">
                   <Button
                     onClick={handleWithdraw}
-                    disabled={!proof || !nullifierHash || !root || isLoading}
+                    disabled={isLoading}
                     className="bg-primary text-primary-foreground hover:bg-primary/90"
                   >
                     {isLoading ? "Processing..." : "Withdraw"}
