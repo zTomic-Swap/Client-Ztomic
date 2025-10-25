@@ -29,7 +29,6 @@ export async function createProofB(
   hashlockNonce: string,
   leaves: string[]
 ): Promise<{ proof: string; publicInputs: string[] }> {
-  
   // --- Input Guard Clauses ---
   if (!secretKeyParty) throw new Error("Invalid 'secretKeyParty' parameter.");
   if (
@@ -45,27 +44,32 @@ export async function createProofB(
 
   // Initialize Barretenberg
   const bb = await Barretenberg.new();
-  
+
   console.log("order id in proof generation (Bob)", orderId);
   try {
     // --- 1. Convert Inputs ---
-    const secretKeyHex = convertToHex(secretKeyParty)
-    const bob_sk = BigInt(secretKeyHex);
+    // --- FIXED ---
+    console.log(" secret key string", secretKeyParty);
+    const bob_sk = BigInt(secretKeyParty);
+    // --- END FIX ---
+
     const alice_pk_point: [bigint, bigint] = [
       BigInt(publicKeyCounterparty[0]),
       BigInt(publicKeyCounterparty[1]),
     ];
     console.log("alice public key", publicKeyCounterparty);
-    
+
     // Ensure order ID is within field bounds
     const orderIdBigInt = BigInt(orderId);
-    const fieldModulus = BigInt("21888242871839275222246405745257275088548364400416034343698204186575808495617");
+    const fieldModulus = BigInt(
+      "21888242871839275222246405745257275088548364400416034343698204186575808495617"
+    );
     if (orderIdBigInt >= fieldModulus) {
       throw new Error("Order ID is too large for the field modulus");
     }
     const order_id_fr = new Fr(orderIdBigInt);
     const nonce_fr = new Fr(BigInt(hashlockNonce));
-    console.log("hashlock nonce (orig)",hashlockNonce)
+    console.log("hashlock nonce (orig)", hashlockNonce);
     console.log("hashlock nonce Fr", nonce_fr.toString());
     const alice_pk_x_fr = new Fr(alice_pk_point[0]);
 
@@ -92,14 +96,17 @@ export async function createProofB(
     const shared_secret = mulPointEscalar(alice_pk_point, bob_sk);
     const shared_secret_x = shared_secret[0];
     const shared_secret_x_fr = new Fr(shared_secret_x);
-    console.log("shared secret",shared_secret_x.toString())
+    console.log("shared secret", shared_secret_x.toString());
     // Reconstruct hashlock (Bob_PK_x, nonce) - Matches Noir line 31
     const reconstructed_hash_lock_fr = await bb.poseidon2Hash([
       bob_pk_x_fr,
       nonce_fr,
     ]);
 
-    console.log("reconstrcuted hashlock",reconstructed_hash_lock_fr.toString());
+    console.log(
+      "reconstrcuted hashlock",
+      reconstructed_hash_lock_fr.toString()
+    );
 
     // Derive commitment (hash_lock, shared_secret_x) - Matches Noir line 33
     const derived_commitment_fr = await bb.poseidon2Hash([
@@ -113,48 +120,51 @@ export async function createProofB(
       alice_pk_x_fr,
       order_id_fr,
     ]);
-    
+
     console.log("Derived Commitment (Bob):", derived_commitment_fr.toString());
 
     // --- 4. Get Merkle Proof ---
     const commitmentIndex = tree.getIndex(derived_commitment_fr.toString());
     if (commitmentIndex === -1) {
-      throw new Error("Generated commitment not found in the Merkle tree leaves.");
+      throw new Error(
+        "Generated commitment not found in the Merkle tree leaves."
+      );
     }
     console.log("Commitment Index in Merkle Tree:", commitmentIndex);
     const merkleRoot = tree.root();
     console.log("Reconstructed Merkle Root:", merkleRoot.toString());
     const merkleProof = tree.proof(commitmentIndex);
-    console.log("Merkle proof root ", merkleProof.root.toString())
-
+    console.log("Merkle proof root ", merkleProof.root.toString());
 
     // --- 5. Prepare Noir Inputs (Must match Noir 'main' signature) ---
     const noir = new Noir(circuit);
     const honk = new UltraHonkBackend(circuit.bytecode, { threads: 1 });
 
     const input = {
-      bob_priv_key: secretKeyHex,
+      // --- FIXED ---
+      bob_priv_key: secretKeyParty,
+      // --- END FIX ---
       alice_pub_key_x: publicKeyCounterparty[0],
       alice_pub_key_y: publicKeyCounterparty[1],
       hash_lock_nonce: hashlockNonce,
       order_id: orderId,
       merkle_proof: merkleProof.pathElements.map((s) => s.toString()),
-      is_even: merkleProof.pathIndices.map((i) => (i % 2 == 0)),
+      is_even: merkleProof.pathIndices.map((i) => i % 2 == 0),
       nullifier_hash: computed_nullifier_fr.toString(), // Public input
-      root: merkleProof.root.toString(),             // Public input
+      root: merkleProof.root.toString(), // Public input
     };
     console.log("inputs for proof ----", input);
-    
+
     // --- 6. Generate Proof ---
     const { witness } = await noir.execute(input);
 
     const originalLog = console.log; // Save original
     console.log = () => {}; // Silence logs
-    
+
     const { proof, publicInputs } = await honk.generateProof(witness, {
       keccak: true,
     });
-    
+
     console.log = originalLog; // Restore original
 
     // --- 7. Format and Return Output ---
@@ -167,7 +177,6 @@ export async function createProofB(
       proof: proofHex,
       publicInputs: publicInputsStrings,
     };
-    
   } catch (error) {
     console.error("Error generating Bob's proof:", error);
     throw error;
@@ -176,12 +185,6 @@ export async function createProofB(
   }
 }
 
-
-function convertToHex(str: string) {
-    var hex = '';
-    for(var i=0;i<str.length;i++) {
-        hex += ''+str.charCodeAt(i).toString(16);
-    }
-    return hex;
-}
-
+// --- FIXED ---
+// Deleted convertToHex function
+// --- END FIX ---
