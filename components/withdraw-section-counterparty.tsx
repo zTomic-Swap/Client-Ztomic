@@ -35,8 +35,8 @@ export default function WithdrawSectionCounterparty({
   const [proof, setProof] = useState("")
   const [nullifierHash, setNullifierHash] = useState("")
   const [root, setRoot] = useState("")
-  const [recipientAddr, setRecipientAddr] = useState<string>()
-  const [secret, setSecret] = useState("");
+  const [recipientAddr, setRecipientAddr] = useState("")
+  const [secret, setSecret] = useState("")
   const [fetchedLeaves, setFetchedLeaves] = useState<Hash[]>();
  useEffect(() => {
 handleFetchLeaves();

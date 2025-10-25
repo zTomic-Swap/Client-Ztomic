@@ -26,6 +26,8 @@ export async function generateCommitmentB(
     throw new Error(errorMsg);
   }
 
+  console.log("aluce public keys in create commitment", publicKeyCounterparty)
+  console.log("private key bob in create commitment", secretKeyParty)
   const bb = await Barretenberg.new();
 
   // 1. Convert inputs from strings to BigInt/Fr
@@ -37,7 +39,13 @@ export async function generateCommitmentB(
     counterpartyPubKey[0],
     counterpartyPubKey[1],
   ];
-  const secretKeyBigInt = BigInt(secretKeyParty);
+
+  const secretKeyHex = convertToHex(secretKeyParty)
+      console.log(" secret key hex", secretKeyHex)
+
+  const secretKeyBigInt = BigInt(secretKeyHex);
+
+ 
   
   // This line (previously 32) is where the error originates
   const hashlock_fr = Fr.fromString(hashlock);
@@ -78,5 +86,13 @@ export async function generateCommitmentB(
     // 6. Clean up Barretenberg instance
     await bb.destroy();
   }
+}
+
+function convertToHex(str: string) {
+    var hex = '';
+    for(var i=0;i<str.length;i++) {
+        hex += ''+str.charCodeAt(i).toString(16);
+    }
+    return hex;
 }
 

@@ -9,7 +9,9 @@ export async function generateCommitmentA(publicKeyCounterparty: [string, string
     const counterpartyPubKey = [BigInt(publicKeyCounterparty[0]), BigInt(publicKeyCounterparty[1])];
     const counterpartyPubKeyPoint: [bigint, bigint] = [BigInt(counterpartyPubKey[0]), BigInt(counterpartyPubKey[1])];
     const haslockNonceBigInt = BigInt(haslockNonce);
-    const secretKeyBigInt = BigInt(secretKeyParty);
+    const secretKeyHex = convertToHex(secretKeyParty)
+        console.log(" secret key hex", secretKeyHex)
+    const secretKeyBigInt = BigInt(secretKeyHex);
     console.log("Counterparty Public Keys:", publicKeyCounterparty);
     try {
 
@@ -34,4 +36,12 @@ export async function generateCommitmentA(publicKeyCounterparty: [string, string
         await bb.destroy();
     }
 
+}
+
+function convertToHex(str: string) {
+    var hex = '';
+    for(var i=0;i<str.length;i++) {
+        hex += ''+str.charCodeAt(i).toString(16);
+    }
+    return hex;
 }

@@ -27,6 +27,9 @@ export async function deriveCommitmentB(
   const bb = await Barretenberg.new();
 
   try {
+
+    console.log("bob public keys in reconstruct commitment", publicKeyBob)
+    console.log("private key alice in reconstruct commitment", secretKeyAlice);
     // 1. Convert inputs from strings to BigInt/Fr
     const bobPubKey = [
       BigInt(publicKeyBob[0]),
@@ -36,7 +39,9 @@ export async function deriveCommitmentB(
       bobPubKey[0],
       bobPubKey[1],
     ];
-    const aliceSecretKeyBigInt = BigInt(secretKeyAlice);
+    const secretKeyHex = convertToHex(secretKeyAlice)
+    console.log(" secret key hex", secretKeyHex)
+    const aliceSecretKeyBigInt = BigInt(secretKeyHex);
     
     // Hash the hashlock
     const hashlock_fr = Fr.fromString(hashlock);
@@ -77,4 +82,12 @@ export async function deriveCommitmentB(
     // 6. Clean up Barretenberg instance
     await bb.destroy();
   }
+}
+
+function convertToHex(str: string) {
+    var hex = '';
+    for(var i=0;i<str.length;i++) {
+        hex += ''+str.charCodeAt(i).toString(16);
+    }
+    return hex;
 }

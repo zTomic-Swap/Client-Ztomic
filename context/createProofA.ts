@@ -55,7 +55,8 @@ export async function createProofA(
   console.log("order id in proof generation", orderId);
   try {
     // --- 1. Convert Inputs ---
-    const alice_sk = BigInt(secretKeyParty);
+    const secretKeyHex = convertToHex(secretKeyParty)
+    const alice_sk = BigInt(secretKeyHex);
     const bob_pk_point: [bigint, bigint] = [
       BigInt(publicKeyCounterparty[0]),
       BigInt(publicKeyCounterparty[1]),
@@ -128,7 +129,7 @@ export async function createProofA(
     const honk = new UltraHonkBackend(circuit.bytecode, { threads: 1 });
 
     const input = {
-      alice_priv_key: secretKeyParty,
+      alice_priv_key: secretKeyHex,
       bob_pub_key_x: publicKeyCounterparty[0],
       bob_pub_key_y: publicKeyCounterparty[1],
       order_id: order_id_fr.toString(),
@@ -170,3 +171,10 @@ export async function createProofA(
   }
 }
 
+function convertToHex(str: string) {
+    var hex = '';
+    for(var i=0;i<str.length;i++) {
+        hex += ''+str.charCodeAt(i).toString(16);
+    }
+    return hex;
+}
