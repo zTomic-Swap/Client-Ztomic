@@ -452,7 +452,18 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
       if(!initiatorIdentity || !nonce_responder)
         return
 
-      const {proof, publicInputs} = await createProofB(secret, [initiatorIdentity.pubKeyX, initiatorIdentity.pubKeyY], keccak256(order.id), nonce_responder, leaves);
+      // Convert order ID to a field-compatible value
+      const orderIdBigInt = BigInt(order.id);
+      const fieldModulus = BigInt("21888242871839275222246405745257275088548364400416034343698204186575808495617");
+      const orderIdField = orderIdBigInt % fieldModulus;
+      
+      const {proof, publicInputs} = await createProofB(
+        secret, 
+        [initiatorIdentity.pubKeyX, initiatorIdentity.pubKeyY], 
+        orderIdField.toString(), 
+        nonce_responder, 
+        leaves
+      );
 
       const args = [proof, publicInputs[0], publicInputs[1], "0x0af700A3026adFddC10f7Aa8Ba2419e8503592f7"]
       const tx = await writeContract(config, {

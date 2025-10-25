@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
 import { ConnectButton } from "@rainbow-me/rainbowkit"
 import { useAccount } from "wagmi"
-import { fetchHistoricalEvents } from "@/context/eventService"
+// import { fetchHistoricalEvents } from "@/context/eventService"
 
 // The UserKey type should match the one in your API lib for consistency
 interface UserKey {
@@ -35,15 +35,15 @@ export default function WalletConnect({ onConnect }: WalletConnectProps) {
   //   }
   // }
 
-  async function hadleFetchEvents() {
-    const historicalEvents = await fetchHistoricalEvents();
-    console.log(historicalEvents);
-  }
+  // async function hadleFetchEvents() {
+  //   const historicalEvents = await fetchHistoricalEvents();
+  //   console.log(historicalEvents);
+  // }
 
   useEffect(() => {
     if (isConnected && address) {
       setStep("identity");
-      hadleFetchEvents();
+      // hadleFetchEvents();
     }
   },[isConnected])
 

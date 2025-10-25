@@ -56,7 +56,14 @@ export async function createProofB(
       BigInt(publicKeyCounterparty[1]),
     ];
     console.log("alice public key", publicKeyCounterparty);
-    const order_id_fr = new Fr(BigInt(orderId));
+    
+    // Ensure order ID is within field bounds
+    const orderIdBigInt = BigInt(orderId);
+    const fieldModulus = BigInt("21888242871839275222246405745257275088548364400416034343698204186575808495617");
+    if (orderIdBigInt >= fieldModulus) {
+      throw new Error("Order ID is too large for the field modulus");
+    }
+    const order_id_fr = new Fr(orderIdBigInt);
     const nonce_fr = new Fr(BigInt(hashlockNonce));
     console.log("hashlock nonce (orig)",hashlockNonce)
     console.log("hashlock nonce Fr", nonce_fr.toString());
