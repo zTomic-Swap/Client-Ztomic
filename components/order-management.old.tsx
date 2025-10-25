@@ -1,9 +1,7 @@
 "use client"
-import { useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { useIntentStore } from "@/components/intent-store"
-import { useIntentSync } from "@/components/intent-store-sync"
 import { useMemo } from "react"
 
 interface OrderManagementProps {
@@ -12,9 +10,9 @@ interface OrderManagementProps {
 }
 
 export default function OrderManagement({ userIdentity, onSelectOrder }: OrderManagementProps) {
-  // Use the sync hook for real-time updates
-  useIntentSync();
-  
+  // subscribe only to the raw intents array; compute filtered list with useMemo
+  // so the selector doesn't return a new array each render which can trigger
+  // the "getSnapshot should be cached" warning from useSyncExternalStore (zustand)
   const intents = useIntentStore((state) => state.intents)
   const updateIntent = useIntentStore((state) => state.updateIntent)
   const selectCounterparty = useIntentStore((state) => state.selectCounterparty)
@@ -24,12 +22,9 @@ export default function OrderManagement({ userIdentity, onSelectOrder }: OrderMa
     userIdentity.identity,
   ])
 
-  const handleCancelOrder = async (orderId: number) => {
-    await updateIntent(orderId, { status: "cancelled" })
-  }
-
-  const handleSelectCounterparty = async (intentId: number, counterpartyId: string) => {
-    await selectCounterparty(intentId, counterpartyId);
+  
+  const handleCancelOrder = (orderId: number) => {
+    updateIntent(orderId, { status: "cancelled" })
   }
 
   const handleViewOrder = (order: any) => {
@@ -72,14 +67,14 @@ export default function OrderManagement({ userIdentity, onSelectOrder }: OrderMa
                     {order.interestedParties.length} interested • Created{" "}
                     {new Date(order.createdAt).toLocaleDateString()}
                   </div>
-                  {order.interestedParties.length > 0 && !order.selectedCounterparty && (
+                  {order.interestedParties.length > 0 && (
                     <div className="mt-2 text-xs">
                       <div className="mb-1 font-medium text-xs">Interested parties</div>
                       <div className="flex flex-wrap gap-2">
                         {order.interestedParties.map((party) => (
                           <button
                             key={party}
-                            onClick={() => handleSelectCounterparty(order.id, party)}
+                            onClick={() => selectCounterparty(order.id, party)}
                             className={`text-xs px-2 py-1 rounded border border-border hover:bg-secondary/30`}
                           >
                             {party}

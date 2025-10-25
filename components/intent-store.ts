@@ -19,6 +19,8 @@ interface IntentStore {
   intents: Intent[];
   isLoading: boolean;
   error: string | null;
+  lastUpdate: number;
+  isFetching: boolean;
   fetchIntents: () => Promise<void>;
   addIntent: (newIntentData: Omit<Intent, "id" | "createdAt" | "status" | "interestedParties">) => Promise<Intent | undefined>;
   updateIntent: (id: number, updates: Partial<Intent>) => Promise<void>;
@@ -33,19 +35,29 @@ export const useIntentStore = create<IntentStore>((set, get) => ({
   intents: [], // Start with an empty array
   isLoading: false,
   error: null,
+  lastUpdate: 0,
+  isFetching: false,
 
   /**
    * GET: Fetch all intents from the API
    */
   fetchIntents: async () => {
-    set({ isLoading: true, error: null });
+    const state = get();
+    // Prevent multiple simultaneous fetches
+    if (state.isFetching) return;
+    
+    // Only fetch if 2 seconds have passed since last update
+    const now = Date.now();
+    if (now - state.lastUpdate < 2000) return;
+
+    set({ isFetching: true, error: null });
     try {
       const response = await fetch("/api/intents");
       if (!response.ok) throw new Error("Failed to fetch intents");
       const intents: Intent[] = await response.json();
-      set({ intents, isLoading: false });
+      set({ intents, isLoading: false, lastUpdate: now, isFetching: false });
     } catch (e) {
-      set({ error: (e as Error).message, isLoading: false });
+      set({ error: (e as Error).message, isLoading: false, isFetching: false });
     }
   },
 
@@ -63,9 +75,10 @@ export const useIntentStore = create<IntentStore>((set, get) => ({
       
       const createdIntent: Intent = await response.json();
       
-      // Add the new intent to the local state
+      // Add the new intent to the local state and update timestamp
       set((state) => ({
         intents: [createdIntent, ...state.intents],
+        lastUpdate: Date.now()
       }));
       return createdIntent;
     } catch (e) {
@@ -88,11 +101,12 @@ export const useIntentStore = create<IntentStore>((set, get) => ({
       
       const updatedIntent: Intent = await response.json();
 
-      // Update the intent in the local state
+      // Update the intent in the local state and update timestamp
       set((state) => ({
         intents: state.intents.map((intent) =>
           intent.id === id ? updatedIntent : intent
         ),
+        lastUpdate: Date.now()
       }));
     } catch (e) {
       set({ error: (e as Error).message });
