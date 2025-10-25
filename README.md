@@ -59,6 +59,24 @@ Ztomic-Swap is a decentralized platform that enables private, secure atomic swap
 - Hash-locked transactions
 - Cross-chain message verification
 
+## Run
+
+### Step 1
+```bash
+npm i
+```
+
+### Step 2
+```bash
+npm run build
+```
+
+### Step 3
+```bash
+npm run dev
+```
+
+
 ## Implementation Details
 
 ### Key Technologies
@@ -112,5 +130,5 @@ Ztomic-Swap is a decentralized platform that enables private, secure atomic swap
 
 ## Network Support
 
+- Hedera Testnet
 - Ethereum Sepolia Testnet
-- Additional networks planned
