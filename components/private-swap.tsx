@@ -105,7 +105,7 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
           ccipMessageId: log.args.ccipMessageId
         };
 
-        if (log.args._order_id_hash === keccak256(stringToBytes(order.id))) {
+        if (log.args._order_id_hash === keccak256(stringToBytes(order.id.toString()))) {
           setHashlock_responder(log.args.hashlock);
           setCcipMessageId(log.args.ccipMessageId);
         }
@@ -120,7 +120,7 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
           hashlock_nonce: log.data
         };
 
-        if (log.args._order_id_hash === keccak256(stringToBytes(order.id))) {
+        if (log.args._order_id_hash === keccak256(stringToBytes(order.id.toString()))) {
           setNonce_responder(log.data)
         }
 
@@ -210,7 +210,7 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
   }, [eventLogs_depositInitiator]);
 
   useEffect(() => {
-    const currentOrder = intents.find((i) => i.id === order.id)
+    const currentOrder = intents.find((i) => i.id === Number(order.id))
 
     if (!currentOrder) {
       console.error("Swap order details not found in global state.")
@@ -296,7 +296,7 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
       console.log("Counterparty Key Y:", counterpartyIdentity.pubKeyY)
       console.log("Your Secret:", secret)
 
-      const orderIdHash = keccak256(stringToBytes(order.id));
+      const orderIdHash = keccak256(stringToBytes(order.id.toString()));
       console.log("Order ID Hash:", orderIdHash)
       console.log("generating Commitment A  for Initiator.")
       const commitmentA = await generateCommitmentA([counterpartyIdentity.pubKeyX, counterpartyIdentity.pubKeyY], secret, hashlockNonce);
@@ -324,9 +324,9 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
       const token = userRole === "initiator" ? order.fromToken : order.toToken
       const user = userRole === "initiator" ? order.initiatorAddress : userIdentity.address
 
-      const depositRecord: DepositRecord = { id: depositId, swapId: order.id, user, token, amount: Number.parseFloat(amount), txHash, timestamp: new Date(), status: "confirmed" }
+      const depositRecord: DepositRecord = { id: depositId, swapId: order.id.toString(), user, token, amount: Number.parseFloat(amount), txHash, timestamp: new Date(), status: "confirmed" }
       addDeposit(depositRecord)
-      addEvent({ id: createId(), swapId: order.id, type: "deposit", user, amount: Number.parseFloat(amount), token, txHash, blockNumber: Math.floor(Math.random() * 1000000) + 18000000, timestamp: new Date(), status: "pending" })
+      addEvent({ id: createId(), swapId: order.id.toString(), type: "deposit", user, amount: Number.parseFloat(amount), token, txHash, blockNumber: Math.floor(Math.random() * 1000000) + 18000000, timestamp: new Date(), status: "pending" })
 
       const newMessage: SwapMessage = { id: messageCount + 1, type: "deposit", sender: userRole === "initiator" ? "You (Initiator)" : "You (Counterparty)", timestamp: new Date(), message: `Deposited ${amount} ${token}`, status: "success" }
       setMessages((prev) => [...prev, newMessage])
@@ -371,9 +371,9 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
       const token = userRole === "initiator" ? order.fromToken : order.toToken
       const user = userRole === "initiator" ? order.initiatorAddress : userIdentity.address
 
-      const depositRecord: DepositRecord = { id: depositId, swapId: order.id, user, token, amount: Number.parseFloat("1"), txHash, timestamp: new Date(), status: "confirmed" }
+      const depositRecord: DepositRecord = { id: depositId, swapId: order.id.toString(), user, token, amount: Number.parseFloat("1"), txHash, timestamp: new Date(), status: "confirmed" }
       addDeposit(depositRecord)
-      addEvent({ id: createId(), swapId: order.id, type: "deposit", user, amount: Number.parseFloat("1"), token, txHash, blockNumber: Math.floor(Math.random() * 1000000) + 18000000, timestamp: new Date(), status: "pending" })
+      addEvent({ id: createId(), swapId: order.id.toString(), type: "deposit", user, amount: Number.parseFloat("1"), token, txHash, blockNumber: Math.floor(Math.random() * 1000000) + 18000000, timestamp: new Date(), status: "pending" })
 
       const newMessage: SwapMessage = { id: messageCount + 1, type: "deposit", sender: userRole === "initiator" ? "You (Initiator)" : "You (Counterparty)", timestamp: new Date(), message: `Deposited ${"1"} ${token}`, status: "success" }
       setMessages((prev) => [...prev, newMessage])
@@ -391,7 +391,7 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
           const completionMessage: SwapMessage = { id: messageCount + 2, type: "event", timestamp: new Date(), message: "Swap completed successfully! Tokens exchanged.", status: "success" }
           setMessages((prev) => [...prev, completionMessage])
           setMessageCount((prev) => prev + 1)
-          addEvent({ id: createId(), swapId: order.id, type: "swap_completed", user: userIdentity.address, amount: Number.parseFloat("1"), token, txHash: `0x${Math.random().toString(16).substring(2, 66)}`, blockNumber: Math.floor(Math.random() * 1000000) + 18000000, timestamp: new Date(), status: "confirmed" })
+          addEvent({ id: createId(), swapId: order.id.toString(), type: "swap_completed", user: userIdentity.address, amount: Number.parseFloat("1"), token, txHash: `0x${Math.random().toString(16).substring(2, 66)}`, blockNumber: Math.floor(Math.random() * 1000000) + 18000000, timestamp: new Date(), status: "confirmed" })
         }
       }, 2000)
     }, 800)
@@ -415,9 +415,10 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
     try {
       setIsWithdrawing(true)
       if (!counterpartyIdentity || !fetchedLeaves) return
-      const { proof, publicInputs } = await createProofA(secretKey, [counterpartyIdentity?.pubKeyX, counterpartyIdentity?.pubKeyY], keccak256(order.id), hashlockNonce, fetchedLeaves);
+      const { proof, publicInputs } = await createProofA(secretKey, [counterpartyIdentity?.pubKeyX, counterpartyIdentity?.pubKeyY], order.id.toString(), hashlockNonce, fetchedLeaves);
       console.log("Generated proof for Initiator withdrawal:", proof, publicInputs)
       // proof should be bytes; assume the UI provides hex string (0x...)
+      // orderIdHash is already a stringified version of order.id
       const args = [proof, publicInputs[1], publicInputs[2], publicInputs[0], keccak256(stringToBytes(orderIdHash)), recipient];
       const tx = await writeContract(config, {
         abi: ztomicAbi,
@@ -429,7 +430,7 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
       setWithdrawTx(tx)
       // update UI
       setUserAWithdrawn(true)
-      addEvent({ id: createId(), swapId: order.id, type: 'withdrawal', user: userIdentity.address, amount: order.amount, token: order.fromToken, txHash: tx as any, blockNumber: Math.floor(Math.random() * 1000000) + 18000000, timestamp: new Date(), status: 'pending' })
+      addEvent({ id: createId(), swapId: order.id.toString(), type: 'withdrawal', user: userIdentity.address, amount: order.amount, token: order.fromToken, txHash: tx as any, blockNumber: Math.floor(Math.random() * 1000000) + 18000000, timestamp: new Date(), status: 'pending' })
       setMessages((prev) => [...prev, { id: messageCount + 1, type: 'event', timestamp: new Date(), message: 'Initiator withdrawal submitted', status: 'pending' }])
       setMessageCount((prev) => prev + 1)
     } catch (err) {
@@ -453,19 +454,17 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
         return
 
       // Convert order ID to a field-compatible value
-      const orderIdBigInt = BigInt(order.id);
-      const fieldModulus = BigInt("21888242871839275222246405745257275088548364400416034343698204186575808495617");
-      const orderIdField = orderIdBigInt % fieldModulus;
-      
-      const {proof, publicInputs} = await createProofB(
+    const orderIdBigInt = BigInt(order.id.toString());
+    const fieldModulus = BigInt("21888242871839275222246405745257275088548364400416034343698204186575808495617");
+    const orderIdField = orderIdBigInt % fieldModulus;
+    
+    const {proof, publicInputs} = await createProofB(
         secret, 
         [initiatorIdentity.pubKeyX, initiatorIdentity.pubKeyY], 
         orderIdField.toString(), 
         nonce_responder, 
         leaves
-      );
-
-      const args = [proof, publicInputs[0], publicInputs[1], "0x0af700A3026adFddC10f7Aa8Ba2419e8503592f7"]
+      );      const args = [proof, publicInputs[0], publicInputs[1], "0x0af700A3026adFddC10f7Aa8Ba2419e8503592f7"]
       const tx = await writeContract(config, {
         abi: ztomicAbi,
         address: '0x63DFD07e625736bd20C62BD882e5D3475d8E0297' as Address,
@@ -475,7 +474,7 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
       console.log('withdraw_responder tx:', tx)
       setWithdrawTx(tx)
       setUserBWithdrawn(true)
-      addEvent({ id: createId(), swapId: order.id, type: 'withdrawal', user: userIdentity.address, amount: order.amount, token: order.toToken, txHash: tx as any, blockNumber: Math.floor(Math.random() * 1000000) + 18000000, timestamp: new Date(), status: 'pending' })
+      addEvent({ id: createId(), swapId: order.id.toString(), type: 'withdrawal', user: userIdentity.address, amount: order.amount, token: order.toToken, txHash: tx as any, blockNumber: Math.floor(Math.random() * 1000000) + 18000000, timestamp: new Date(), status: 'pending' })
       setMessages((prev) => [...prev, { id: messageCount + 1, type: 'event', timestamp: new Date(), message: 'Responder withdrawal submitted', status: 'pending' }])
       setMessageCount((prev) => prev + 1)
     } catch (err) {

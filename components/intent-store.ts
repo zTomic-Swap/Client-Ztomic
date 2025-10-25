@@ -2,7 +2,7 @@ import { create } from "zustand";
 
 // 1. Use the same interface from your API lib
 export interface Intent {
-  id: string;
+  id: number;
   initiator: string;
   initiatorAddress: string;
   fromToken: string;
@@ -21,11 +21,11 @@ interface IntentStore {
   error: string | null;
   fetchIntents: () => Promise<void>;
   addIntent: (newIntentData: Omit<Intent, "id" | "createdAt" | "status" | "interestedParties">) => Promise<Intent | undefined>;
-  updateIntent: (id: string, updates: Partial<Intent>) => Promise<void>;
-  addInterest: (intentId: string, userId: string) => Promise<void>;
-  selectCounterparty: (intentId: string, counterpartyId: string) => Promise<void>;
+  updateIntent: (id: number, updates: Partial<Intent>) => Promise<void>;
+  addInterest: (intentId: number, userId: string) => Promise<void>;
+  selectCounterparty: (intentId: number, counterpartyId: string) => Promise<void>;
   getUserIntents: (userId: string) => Intent[];
-  getIntentById: (id: string) => Intent | undefined;
+  getIntentById: (id: number) => Intent | undefined;
 }
 
 // 3. Create the store with API logic
@@ -77,7 +77,7 @@ export const useIntentStore = create<IntentStore>((set, get) => ({
   /**
    * PUT: Update a generic intent
    */
-  updateIntent: async (id, updates) => {
+  updateIntent: async (id: number, updates) => {
     try {
       const response = await fetch(`/api/intents/${id}`, {
         method: "PUT",
@@ -102,7 +102,7 @@ export const useIntentStore = create<IntentStore>((set, get) => ({
   /**
    * PUT: Specific update for adding/removing interest
    */
-  addInterest: async (intentId, userId) => {
+  addInterest: async (intentId: number, userId: string) => {
     const state = get();
     const intent = state.intents.find((i) => i.id === intentId);
     if (!intent) return;
@@ -119,7 +119,7 @@ export const useIntentStore = create<IntentStore>((set, get) => ({
   /**
    * PUT: Specific update for selecting a counterparty
    */
-  selectCounterparty: async (intentId, counterpartyId) => {
+  selectCounterparty: async (intentId: number, counterpartyId: string) => {
     const state = get();
     // Call the generic update function with the specific payload
     await state.updateIntent(intentId, {
@@ -129,12 +129,12 @@ export const useIntentStore = create<IntentStore>((set, get) => ({
   },
 
   // --- Selector functions (no change needed) ---
-  getUserIntents: (userId) => {
+  getUserIntents: (userId: string) => {
     const state = get();
     return state.intents.filter((intent) => intent.initiator === userId);
   },
 
-  getIntentById: (id) => {
+  getIntentById: (id: number) => {
     const state = get();
     return state.intents.find((intent) => intent.id === id);
   },

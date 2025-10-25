@@ -22,7 +22,8 @@ export default function OrderManagement({ userIdentity, onSelectOrder }: OrderMa
     userIdentity.identity,
   ])
 
-  const handleCancelOrder = (orderId: string) => {
+  
+  const handleCancelOrder = (orderId: number) => {
     updateIntent(orderId, { status: "cancelled" })
   }
 

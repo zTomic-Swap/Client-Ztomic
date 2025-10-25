@@ -46,12 +46,13 @@ function BrowseOrders({ onSelectOrder, userIdentity }: BrowseOrdersProps) {
   }, [intents, userIdentity.identity, tokenFilter, sortBy])
 
   const handleShowInterest = useCallback(
-    (orderId: string) => {
+    (orderId: number) => {
       const newInterests = new Set(userInterests)
-      if (newInterests.has(orderId)) {
-        newInterests.delete(orderId)
+      const orderIdStr = orderId.toString()
+      if (newInterests.has(orderIdStr)) {
+        newInterests.delete(orderIdStr)
       } else {
-        newInterests.add(orderId)
+        newInterests.add(orderIdStr)
       }
       setUserInterests(newInterests)
       addInterest(orderId, userIdentity.identity)
@@ -118,7 +119,7 @@ function BrowseOrders({ onSelectOrder, userIdentity }: BrowseOrdersProps) {
                           <div className="flex items-center gap-2 mb-1">
                             <span className="text-sm font-semibold text-foreground">{order.initiator}</span>
                             <span className="text-xs text-muted-foreground bg-secondary px-2 py-1 rounded">
-                              #{order.id.substring(0, 8)}
+                              #{order.id.toString()}
                             </span>
                           </div>
                           <div className="text-xs text-muted-foreground">{timeAgoText}</div>
@@ -150,16 +151,16 @@ function BrowseOrders({ onSelectOrder, userIdentity }: BrowseOrdersProps) {
                     <div className="flex flex-col gap-2 ml-4">
                       <Button
                         onClick={() => handleShowInterest(order.id)}
-                        variant={userInterests.has(order.id) ? "default" : "outline"}
+                        variant={userInterests.has(order.id.toString()) ? "default" : "outline"}
                         className={
-                          userInterests.has(order.id)
+                          userInterests.has(order.id.toString())
                             ? "bg-primary text-primary-foreground"
                             : "border-border text-foreground hover:bg-secondary"
                         }
                       >
-                        {userInterests.has(order.id) ? "✓ Interested" : "Show Interest"}
+                        {userInterests.has(order.id.toString()) ? "✓ Interested" : "Show Interest"}
                       </Button>
-                      {userInterests.has(order.id) && (
+                      {userInterests.has(order.id.toString()) && (
                         <Button
                           onClick={() => handlePreviewOrder(order)}
                           className="bg-primary text-primary-foreground hover:bg-primary/90"
