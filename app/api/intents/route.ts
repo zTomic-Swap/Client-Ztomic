@@ -1,55 +1,37 @@
 import { NextResponse } from "next/server";
-import { readIntents, writeIntents } from "@/app/lib/data";
-import { Intent } from "@/app/lib/types";
-import { randomUUID } from "crypto";
+
+const EXTERNAL_API = process.env.EXTERNAL_API_URL;
+if (!EXTERNAL_API) {
+  throw new Error("EXTERNAL_API_URL is not configured");
+}
 
 /**
- * GET: Retrieve all intents
+ * Proxy GET /api/intents -> EXTERNAL_API/intents
  */
 export async function GET(request: Request) {
   try {
-    const intents = await readIntents();
-    return NextResponse.json(intents);
+    const res = await fetch(`${EXTERNAL_API}/intents`);
+    const data = await res.json();
+    return NextResponse.json(data, { status: res.status });
   } catch (error) {
-    return NextResponse.json(
-      { error: (error as Error).message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
   }
 }
 
 /**
- * POST: Create a new intent
+ * Proxy POST /api/intents -> EXTERNAL_API/intents
  */
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as Omit<Intent, "id" | "createdAt">;
-
-     const newId = Math.floor(Math.random() * 10001);
-
-    // Create a full new intent object
-    const newIntent: Intent = {
-      ...body,
-      id: newId.toString(), // Generate a new ID
-      createdAt: new Date().toISOString(),
-      status: "pending", // Ensure default status
-      interestedParties: [], // Ensure default
-    };
-
-    const intents = await readIntents();
-    const updatedIntents = [newIntent, ...intents];
-    await writeIntents(updatedIntents);
-
-    return NextResponse.json(newIntent, { status: 201 }); // 201 Created
+    const body = await request.json();
+    const res = await fetch(`${EXTERNAL_API}/intents`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    return NextResponse.json(data, { status: res.status });
   } catch (error) {
-    let errorMessage = "Failed to create intent.";
-    if (error instanceof SyntaxError) {
-      errorMessage = "Invalid JSON in request body.";
-      return NextResponse.json({ error: errorMessage }, { status: 400 });
-    }
-    if (error instanceof Error) {
-      errorMessage = error.message;
-    }
-    return NextResponse.json({ error: errorMessage }, { status: 500 });
+    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
   }
 }
