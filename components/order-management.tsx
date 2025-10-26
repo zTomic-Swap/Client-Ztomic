@@ -28,8 +28,11 @@ export default function OrderManagement({ userIdentity, onSelectOrder }: OrderMa
     await updateIntent(orderId, { status: "cancelled" })
   }
 
-  const handleSelectCounterparty = async (intentId: number, counterpartyId: string) => {
-    await selectCounterparty(intentId, counterpartyId);
+  const handleSelectCounterparty = async (
+    intentId: number,
+    counterparty: { identity: string; "on-chain": string }
+  ) => {
+    await selectCounterparty(intentId, counterparty);
   }
 
   const handleViewOrder = (order: any) => {
@@ -76,20 +79,30 @@ export default function OrderManagement({ userIdentity, onSelectOrder }: OrderMa
                     <div className="mt-2 text-xs">
                       <div className="mb-1 font-medium text-xs">Interested parties</div>
                       <div className="flex flex-wrap gap-2">
-                        {order.interestedParties.map((party) => (
-                          <button
-                            key={party}
-                            onClick={() => handleSelectCounterparty(order.id, party)}
-                            className={`text-xs px-2 py-1 rounded border border-border hover:bg-secondary/30`}
-                          >
-                            {party}
-                          </button>
-                        ))}
+                        {order.interestedParties.map((party, partyIndex) => {
+                          const partyChain = party["on-chain"][0] || "";
+                          return party.identity.map((id, idIndex) => (
+                            <button
+                              key={`${order.id}-${partyIndex}-${idIndex}`}
+                              onClick={() =>
+                                handleSelectCounterparty(order.id, {
+                                  identity: id,
+                                  "on-chain": partyChain,
+                                })
+                              }
+                              className={`text-xs px-2 py-1 rounded border border-border hover:bg-secondary/30`}
+                            >
+                              {id}
+                            </button>
+                          ));
+                        })}
                       </div>
                     </div>
                   )}
                   {order.selectedCounterparty && (
-                    <div className="mt-2 text-xs text-muted-foreground">Selected: {order.selectedCounterparty}</div>
+                    <div className="mt-2 text-xs text-muted-foreground">
+                      Selected: {order.selectedCounterparty.identity}
+                    </div>
                   )}
                 </div>
                 <div className="flex gap-2">

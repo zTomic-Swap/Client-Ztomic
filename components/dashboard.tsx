@@ -109,7 +109,7 @@ export default function Dashboard() {
       {/* If user suppressed auto-open... */}
       {suppressAutoOpen && userIdentity && (
         <div className="max-w-7xl mx-auto px-4 py-2">
-          {intents.some((i) => i.selectedCounterparty === userIdentity.identity && i.status === "active") && (
+          {intents.some((i) => i.selectedCounterparty?.identity === userIdentity.identity && i.status === "active") && (
             <div className="flex justify-end">
               <Button
                 onClick={() => {
@@ -198,7 +198,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        {currentView === "swap" && selectedOrder && (
+        {currentView === "swap" && selectedOrder && userIdentity && (
           <div>
             <Button
               onClick={() => {
@@ -219,4 +219,3 @@ export default function Dashboard() {
     </div>
   )
 }
-
