@@ -4,14 +4,14 @@ import { create } from "zustand";
 export interface Intent {
   id: number;
   initiator: string;
-  initiatorAddress: string;
   fromToken: string;
   toToken: string;
-  amount: number;
+  "on-chain": string;
+  amount: string;
   status: "pending" | "active" | "completed" | "cancelled";
   createdAt: string;
-  interestedParties: string[];
-  selectedCounterparty?: string;
+  interestedParties: {identity: string[], "on-chain": string[]}[];
+  selectedCounterparty?: {identity: string, "on-chain": string};
 }
 
 // 2. Update the store's interface
@@ -24,8 +24,8 @@ interface IntentStore {
   fetchIntents: () => Promise<void>;
   addIntent: (newIntentData: Omit<Intent, "id" | "createdAt" | "status" | "interestedParties">) => Promise<Intent | undefined>;
   updateIntent: (id: number, updates: Partial<Intent>) => Promise<void>;
-  addInterest: (intentId: number, userId: string) => Promise<void>;
-  selectCounterparty: (intentId: number, counterpartyId: string) => Promise<void>;
+  addInterest: (intentId: number, userId: string, userChain: string) => Promise<void>;
+  selectCounterparty: (intentId: number, counterparty: {identity: string, "on-chain": string}) => Promise<void>;
   getUserIntents: (userId: string) => Intent[];
   getIntentById: (id: number) => Intent | undefined;
 }
@@ -116,15 +116,61 @@ export const useIntentStore = create<IntentStore>((set, get) => ({
   /**
    * PUT: Specific update for adding/removing interest
    */
-  addInterest: async (intentId: number, userId: string) => {
+  addInterest: async (intentId: number, userId: string, userChain: string) => {
     const state = get();
     const intent = state.intents.find((i) => i.id === intentId);
     if (!intent) return;
 
-    // Toggle logic
-    const newInterestedParties = intent.interestedParties.includes(userId)
-      ? intent.interestedParties.filter((p) => p !== userId)
-      : [...intent.interestedParties, userId];
+    // Check if user is already interested
+    const existingPartyIndex = intent.interestedParties.findIndex(
+      party => party.identity.includes(userId)
+    );
+
+    let newInterestedParties;
+    if (existingPartyIndex >= 0) {
+      // Remove user from interested parties
+      const party = intent.interestedParties[existingPartyIndex];
+      const updatedIdentity = party.identity.filter(id => id !== userId);
+      const updatedChain = party["on-chain"].filter(chain => chain !== userChain);
+      
+      if (updatedIdentity.length === 0) {
+        // Remove entire party if no identities left
+        newInterestedParties = intent.interestedParties.filter((_, index) => index !== existingPartyIndex);
+      } else {
+        // Update party with remaining identities
+        newInterestedParties = [...intent.interestedParties];
+        newInterestedParties[existingPartyIndex] = {
+          identity: updatedIdentity,
+          "on-chain": updatedChain
+        };
+      }
+    } else {
+      // Add user to interested parties
+      const existingParty = intent.interestedParties.find(party => 
+        party["on-chain"].includes(userChain)
+      );
+      
+      if (existingParty) {
+        // Add to existing party with same chain
+        newInterestedParties = intent.interestedParties.map(party => 
+          party === existingParty 
+            ? {
+                ...party,
+                identity: [...party.identity, userId]
+              }
+            : party
+        );
+      } else {
+        // Create new party
+        newInterestedParties = [
+          ...intent.interestedParties,
+          {
+            identity: [userId],
+            "on-chain": [userChain]
+          }
+        ];
+      }
+    }
     
     // Call the generic update function
     await state.updateIntent(intentId, { interestedParties: newInterestedParties });
@@ -133,11 +179,11 @@ export const useIntentStore = create<IntentStore>((set, get) => ({
   /**
    * PUT: Specific update for selecting a counterparty
    */
-  selectCounterparty: async (intentId: number, counterpartyId: string) => {
+  selectCounterparty: async (intentId: number, counterparty: {identity: string, "on-chain": string}) => {
     const state = get();
     // Call the generic update function with the specific payload
     await state.updateIntent(intentId, {
-      selectedCounterparty: counterpartyId,
+      selectedCounterparty: counterparty,
       status: "active",
     });
   },

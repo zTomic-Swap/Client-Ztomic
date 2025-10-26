@@ -16,6 +16,7 @@ interface BrowseOrdersProps {
 
 function BrowseOrders({ onSelectOrder, userIdentity }: BrowseOrdersProps) {
   const [userInterests, setUserInterests] = useState<Set<string>>(new Set())
+  const [selectedChain, setSelectedChain] = useState("hedera")
   const [sortBy, setSortBy] = useState<SortOption>("newest")
   const [tokenFilter, setTokenFilter] = useState<TokenFilter>("all")
   const [selectedOrderForPreview, setSelectedOrderForPreview] = useState<Intent | null>(null)
@@ -31,7 +32,9 @@ function BrowseOrders({ onSelectOrder, userIdentity }: BrowseOrdersProps) {
   useEffect(() => {
     setUserInterests(new Set(
       intents
-        .filter(intent => intent.interestedParties.includes(userIdentity.identity))
+        .filter(intent => intent.interestedParties?.some(party => 
+          party.identity?.includes(userIdentity.identity)
+        ))
         .map(intent => intent.id.toString())
     ));
   }, [intents, userIdentity.identity]);
@@ -51,7 +54,9 @@ function BrowseOrders({ onSelectOrder, userIdentity }: BrowseOrdersProps) {
       } else if (sortBy === "oldest") {
         return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
       } else {
-        return b.interestedParties.length - a.interestedParties.length
+        const aInterested = a.interestedParties?.reduce((total, party) => total + (party.identity?.length || 0), 0) || 0
+        const bInterested = b.interestedParties?.reduce((total, party) => total + (party.identity?.length || 0), 0) || 0
+        return bInterested - aInterested
       }
     })
 
@@ -60,9 +65,9 @@ function BrowseOrders({ onSelectOrder, userIdentity }: BrowseOrdersProps) {
 
   const handleShowInterest = useCallback(
     async (orderId: number) => {
-      await addInterest(orderId, userIdentity.identity);
+      await addInterest(orderId, userIdentity.identity, selectedChain);
     },
-    [addInterest, userIdentity.identity],
+    [addInterest, userIdentity.identity, selectedChain],
   )
 
   const handlePreviewOrder = useCallback((order: Intent) => {
@@ -84,9 +89,22 @@ function BrowseOrders({ onSelectOrder, userIdentity }: BrowseOrdersProps) {
       <div className="lg:col-span-2 space-y-4">
         <div>
           <h2 className="text-lg font-semibold text-foreground mb-4">Available Orders</h2>
-          <p className="text-sm text-muted-foreground mb-4">
-            Found {filteredAndSortedOrders.length} order{filteredAndSortedOrders.length !== 1 ? "s" : ""}
-          </p>
+          <div className="flex items-center gap-4 mb-4">
+            <p className="text-sm text-muted-foreground">
+              Found {filteredAndSortedOrders.length} order{filteredAndSortedOrders.length !== 1 ? "s" : ""}
+            </p>
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-muted-foreground">Chain:</label>
+              <select
+                value={selectedChain}
+                onChange={(e) => setSelectedChain(e.target.value)}
+                className="text-sm bg-secondary border border-border text-foreground rounded px-2 py-1"
+              >
+                <option value="hedera">Hedera</option>
+                <option value="sepolia">Sepolia</option>
+              </select>
+            </div>
+          </div>
         </div>
 
         <OrderFilters
@@ -145,11 +163,15 @@ function BrowseOrders({ onSelectOrder, userIdentity }: BrowseOrdersProps) {
                             <div className="text-xs text-muted-foreground">{order.toToken}</div>
                           </div>
                         </div>
+                        <div className="text-center mt-2">
+                          <div className="text-xs text-muted-foreground">Original Chain: {order["on-chain"]}</div>
+                          <div className="text-xs text-blue-600 dark:text-blue-400">You can show interest on any chain</div>
+                        </div>
                       </div>
 
                       <div className="text-xs text-muted-foreground">
-                        {order.interestedParties.length} interested{" "}
-                        {order.interestedParties.length !== 1 ? "parties" : "party"}
+                        {order.interestedParties?.reduce((total, party) => total + (party.identity?.length || 0), 0) || 0} interested{" "}
+                        {(order.interestedParties?.reduce((total, party) => total + (party.identity?.length || 0), 0) || 0) !== 1 ? "parties" : "party"}
                       </div>
                     </div>
 
@@ -163,7 +185,7 @@ function BrowseOrders({ onSelectOrder, userIdentity }: BrowseOrdersProps) {
                             : "border-border text-foreground hover:bg-secondary"
                         }
                       >
-                        {userInterests.has(order.id.toString()) ? "✓ Interested" : "Show Interest"}
+                        {userInterests.has(order.id.toString()) ? "✓ Interested" : `Show Interest on ${selectedChain}`}
                       </Button>
                       {userInterests.has(order.id.toString()) && (
                         <Button

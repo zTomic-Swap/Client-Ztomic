@@ -1,14 +1,14 @@
 export interface Intent {
   id: number;
   initiator: string;
-  initiatorAddress: string;
   fromToken: string;
   toToken: string;
-  amount: number;
+  "on-chain": string;
+  amount: string;
   status: "pending" | "active" | "completed" | "cancelled";
+  interestedParties: {identity: string[], "on-chain": string[]}[];
+  selectedCounterparty?: {identity: string, "on-chain": string};
   createdAt: string;
-  interestedParties: string[];
-  selectedCounterparty?: string;
 }
 
 export interface UserKey {

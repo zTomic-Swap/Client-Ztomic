@@ -38,13 +38,13 @@ interface SwapOrder {
   id: string
   initiator: string
   initiatorAddress: string
-  selectedCounterparty?: string  // Make this optional to match the intent type
+  selectedCounterparty?: {identity: string, "on-chain": string}
   fromToken: string
   toToken: string
   amount: string
   status: "pending" | "active" | "completed" | "cancelled"
   createdAt: string
-  interestedParties: string[]
+  interestedParties: {identity: string[], "on-chain": string[]}[]
 }
 
 // Convert Intent to SwapOrder
@@ -52,11 +52,11 @@ function convertIntentToSwapOrder(intent: Intent): SwapOrder {
   return {
     id: String(intent.id),
     initiator: intent.initiator,
-    initiatorAddress: intent.initiatorAddress,
+    initiatorAddress: "", // Remove this field as it's not in the new Intent structure
     selectedCounterparty: intent.selectedCounterparty,
     fromToken: intent.fromToken,
     toToken: intent.toToken,
-    amount: String(intent.amount),
+    amount: intent.amount, // amount is already a string in the new structure
     status: intent.status,
     createdAt: intent.createdAt,
     interestedParties: intent.interestedParties || []
@@ -321,7 +321,7 @@ export default function PrivateSwap({ order, userRole, userIdentity }: PrivateSw
     if (!currentOrder) return;
 
     const fetchParticipantData = async () => {
-      const counterpartyName = currentOrder.selectedCounterparty;
+      const counterpartyName = currentOrder.selectedCounterparty?.identity;
       const initiatorName = currentOrder.initiator;
 
       // Fetch initiator data
