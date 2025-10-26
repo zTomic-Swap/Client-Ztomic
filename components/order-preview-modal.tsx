@@ -58,8 +58,14 @@ export default function OrderPreviewModal({
               <span className="text-sm font-medium text-foreground">{timeAgoText}</span>
             </div>
             <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Chain</span>
+              <span className="text-sm font-medium text-foreground">{order["on-chain"]}</span>
+            </div>
+            <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Interested Parties</span>
-              <span className="text-sm font-medium text-foreground">{order.interestedParties.length}</span>
+              <span className="text-sm font-medium text-foreground">
+                {order.interestedParties.reduce((total, party) => total + party.identity.length, 0)}
+              </span>
             </div>
           </div>
 

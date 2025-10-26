@@ -16,6 +16,7 @@ export default function CreateIntent({ onIntentCreated, userIdentity }: CreateIn
   const [fromToken, setFromToken] = useState("zUSDC")
   const [toToken, setToToken] = useState("zUSDT")
   const [amount, setAmount] = useState("1")
+  const [selectedChain, setSelectedChain] = useState("hedera")
   const [isLoading, setIsLoading] = useState(false)
   const [selectedIntentId, setSelectedIntentId] = useState<number | null>(null)
   const [showCounterpartySelection, setShowCounterpartySelection] = useState(false)
@@ -31,10 +32,10 @@ export default function CreateIntent({ onIntentCreated, userIdentity }: CreateIn
     try {
       const intent = {
         initiator: userIdentity.identity,
-        initiatorAddress: userIdentity.address,
         fromToken,
         toToken,
-        amount: Number.parseFloat(amount),
+        "on-chain": selectedChain,
+        amount: amount,
         status: "pending" as const,
         interestedParties: [],
       }
@@ -63,14 +64,28 @@ export default function CreateIntent({ onIntentCreated, userIdentity }: CreateIn
     }
   }
 
-  const handleSelectCounterparty = (intentId: number, counterpartyId: string) => {
-    selectCounterparty(intentId, counterpartyId)
-    const selectedIntent = intents.find((i) => i.id === intentId)
-    if (selectedIntent) {
-      onIntentCreated(selectedIntent)
+  const handleSelectCounterparty = async (intentId: number, counterparty: {identity: string, "on-chain": string}) => {
+    try {
+      await selectCounterparty(intentId, counterparty)
+      
+      // Wait a moment for the store to update, then fetch the updated intent
+      setTimeout(async () => {
+        try {
+          const response = await fetch(`/api/intents/${intentId}`)
+          if (response.ok) {
+            const updatedIntent = await response.json()
+            onIntentCreated(updatedIntent)
+          }
+        } catch (error) {
+          console.error("Error fetching updated intent:", error)
+        }
+      }, 500)
+      
+      setShowCounterpartySelection(false)
+      setSelectedIntentId(null)
+    } catch (error) {
+      console.error("Error selecting counterparty:", error)
     }
-    setShowCounterpartySelection(false)
-    setSelectedIntentId(null)
   }
 
   return (
@@ -106,15 +121,26 @@ export default function CreateIntent({ onIntentCreated, userIdentity }: CreateIn
             </div>
 
             <div>
+              <label className="block text-sm font-medium text-foreground mb-2">Chain</label>
+              <select
+                value={selectedChain}
+                onChange={(e) => setSelectedChain(e.target.value)}
+                className="w-full bg-secondary border border-border text-foreground rounded px-3 py-2"
+              >
+                <option value="hedera">Hedera</option>
+                <option value="sepolia">Sepolia</option>
+              </select>
+            </div>
+
+            <div>
               <label className="block text-sm font-medium text-foreground mb-2">Amount</label>
               <Input
-                type="number"
+                type="text"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 className="bg-secondary border-border text-foreground"
-                disabled
+                placeholder="Enter amount"
               />
-              <p className="text-xs text-muted-foreground mt-1">Fixed denomination: 1 {fromToken}</p>
             </div>
 
             <Button
@@ -148,26 +174,37 @@ export default function CreateIntent({ onIntentCreated, userIdentity }: CreateIn
                     </div>
                   </div>
 
-                  {intent.interestedParties.length > 0 ? (
+                  {intent.interestedParties && intent.interestedParties.length > 0 ? (
                     <div className="space-y-2">
                       <div className="text-xs text-muted-foreground font-semibold">
-                        Interested parties ({intent.interestedParties.length}):
+                        Interested parties ({intent.interestedParties?.reduce((total, party) => total + (party.identity?.length || 0), 0) || 0}):
                       </div>
                       <div className="space-y-2">
-                        {intent.interestedParties.map((party) => (
-                          <div key={party} className="flex items-center justify-between bg-background/50 rounded p-2">
-                            <span className="text-sm text-foreground">{party}</span>
-                            {!intent.selectedCounterparty && (
-                              <Button
-                                onClick={() => handleSelectCounterparty(intent.id, party)}
-                                size="sm"
-                                className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs"
-                              >
-                                Select
-                              </Button>
-                            )}
-                          </div>
-                        ))}
+                        {intent.interestedParties.map((party, partyIndex) => 
+                          party.identity?.map((identity, identityIndex) => (
+                            <div key={`${partyIndex}-${identityIndex}`} className="flex items-center justify-between bg-background/50 rounded p-2">
+                              <div className="flex flex-col">
+                                <span className="text-sm text-foreground">{identity}</span>
+                                <span className="text-xs text-muted-foreground">Chain: {party["on-chain"]?.[identityIndex] || party["on-chain"]?.[0]}</span>
+                              </div>
+                              {!intent.selectedCounterparty && (
+                                <Button
+                                  onClick={() => {
+                                    console.log("Selecting counterparty:", {identity, "on-chain": party["on-chain"]?.[identityIndex] || party["on-chain"]?.[0]})
+                                    handleSelectCounterparty(intent.id, {
+                                      identity,
+                                      "on-chain": party["on-chain"]?.[identityIndex] || party["on-chain"]?.[0]
+                                    })
+                                  }}
+                                  size="sm"
+                                  className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs"
+                                >
+                                  Select
+                                </Button>
+                              )}
+                            </div>
+                          )) || []
+                        )}
                       </div>
                     </div>
                   ) : (
@@ -177,7 +214,8 @@ export default function CreateIntent({ onIntentCreated, userIdentity }: CreateIn
                   {intent.selectedCounterparty && (
                     <div className="mt-3 pt-3 border-t border-border/50">
                       <div className="text-xs text-muted-foreground font-semibold mb-1">Selected Counterparty:</div>
-                      <div className="text-sm font-semibold text-foreground">{intent.selectedCounterparty}</div>
+                      <div className="text-sm font-semibold text-foreground">{intent.selectedCounterparty.identity}</div>
+                      <div className="text-xs text-muted-foreground">Chain: {intent.selectedCounterparty["on-chain"]}</div>
                     </div>
                   )}
                 </div>

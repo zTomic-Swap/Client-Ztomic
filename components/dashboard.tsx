@@ -30,7 +30,7 @@ export default function Dashboard() {
     if (!userIdentity) return
     if (suppressAutoOpen) return
 
-    const matched = intents.find((i) => i.selectedCounterparty === userIdentity.identity && i.status === "active")
+    const matched = intents.find((i) => i.selectedCounterparty?.identity === userIdentity.identity && i.status === "active")
     if (matched) {
       if (selectedOrder?.id !== matched.id) {
         setSelectedOrder(matched)
@@ -45,7 +45,7 @@ export default function Dashboard() {
   }, [fetchIntents])
 
   const handleCreateIntent = (intent: any) => {
-    if (intent.selectedCounterparty) {
+    if (intent.selectedCounterparty?.identity) {
       setSelectedOrder(intent)
       setUserRole("initiator")
       setCurrentView("swap")
@@ -109,11 +109,11 @@ export default function Dashboard() {
       {/* If user suppressed auto-open... */}
       {suppressAutoOpen && userIdentity && (
         <div className="max-w-7xl mx-auto px-4 py-2">
-          {intents.some((i) => i.selectedCounterparty === userIdentity.identity && i.status === "active") && (
+          {intents.some((i) => i.selectedCounterparty?.identity === userIdentity.identity && i.status === "active") && (
             <div className="flex justify-end">
               <Button
                 onClick={() => {
-                  const matched = intents.find((i) => i.selectedCounterparty === userIdentity.identity && i.status === "active")
+                  const matched = intents.find((i) => i.selectedCounterparty?.identity === userIdentity.identity && i.status === "active")
                   if (matched) {
                     setSelectedOrder(matched)
                     setUserRole(matched.initiator === userIdentity.identity ? "initiator" : "counterparty")

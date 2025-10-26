@@ -28,8 +28,8 @@ export default function OrderManagement({ userIdentity, onSelectOrder }: OrderMa
     await updateIntent(orderId, { status: "cancelled" })
   }
 
-  const handleSelectCounterparty = async (intentId: number, counterpartyId: string) => {
-    await selectCounterparty(intentId, counterpartyId);
+  const handleSelectCounterparty = async (intentId: number, counterparty: {identity: string, "on-chain": string}) => {
+    await selectCounterparty(intentId, counterparty);
   }
 
   const handleViewOrder = (order: any) => {
@@ -69,27 +69,34 @@ export default function OrderManagement({ userIdentity, onSelectOrder }: OrderMa
                     </span>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {order.interestedParties.length} interested • Created{" "}
+                    Chain: {order["on-chain"]} • {order.interestedParties?.reduce((total, party) => total + (party.identity?.length || 0), 0) || 0} interested • Created{" "}
                     {new Date(order.createdAt).toLocaleDateString()}
                   </div>
-                  {order.interestedParties.length > 0 && !order.selectedCounterparty && (
+                  {order.interestedParties && order.interestedParties.length > 0 && !order.selectedCounterparty && (
                     <div className="mt-2 text-xs">
                       <div className="mb-1 font-medium text-xs">Interested parties</div>
                       <div className="flex flex-wrap gap-2">
-                        {order.interestedParties.map((party) => (
-                          <button
-                            key={party}
-                            onClick={() => handleSelectCounterparty(order.id, party)}
-                            className={`text-xs px-2 py-1 rounded border border-border hover:bg-secondary/30`}
-                          >
-                            {party}
-                          </button>
-                        ))}
+                        {order.interestedParties.map((party, partyIndex) => 
+                          party.identity?.map((identity, identityIndex) => (
+                            <button
+                              key={`${partyIndex}-${identityIndex}`}
+                              onClick={() => handleSelectCounterparty(order.id, {
+                                identity,
+                                "on-chain": party["on-chain"]?.[identityIndex] || party["on-chain"]?.[0]
+                              })}
+                              className={`text-xs px-2 py-1 rounded border border-border hover:bg-secondary/30`}
+                            >
+                              {identity} ({party["on-chain"]?.[identityIndex] || party["on-chain"]?.[0]})
+                            </button>
+                          )) || []
+                        )}
                       </div>
                     </div>
                   )}
                   {order.selectedCounterparty && (
-                    <div className="mt-2 text-xs text-muted-foreground">Selected: {order.selectedCounterparty}</div>
+                    <div className="mt-2 text-xs text-muted-foreground">
+                      Selected: {order.selectedCounterparty.identity} ({order.selectedCounterparty["on-chain"]})
+                    </div>
                   )}
                 </div>
                 <div className="flex gap-2">
