@@ -1,0 +1,65 @@
+[
+  {
+    "id": "6987",
+    "initiator": "yashs",
+    "initiatorAddress": "",
+    "fromToken": "zUSDC",
+    "toToken": "zUSDT",
+    "amount": 1,
+    "status": "pending",
+    "createdAt": "2025-10-25T15:40:06.694Z",
+    "interestedParties": []
+  },
+  {
+    "id": "101",
+    "initiator": "yashs",
+    "initiatorAddress": "",
+    "fromToken": "zUSDC",
+    "toToken": "zUSDT",
+    "amount": 1,
+    "status": "active",
+    "createdAt": "2025-10-25T14:18:21.854Z",
+    "interestedParties": [
+      "dakshs"
+    ],
+    "selectedCounterparty": "dakshs"
+  },
+  {
+    "id": "755603",
+    "initiator": "y",
+    "initiatorAddress": "",
+    "fromToken": "zUSDC",
+    "toToken": "zUSDT",
+    "amount": 1,
+    "status": "active",
+    "createdAt": "2025-10-25T13:43:55.227Z",
+    "interestedParties": [
+      "d"
+    ],
+    "selectedCounterparty": "d"
+  },
+  {
+    "id": "order-1",
+    "initiator": "alice.ztom",
+    "initiatorAddress": "0x1234...5678",
+    "fromToken": "zUSDC",
+    "toToken": "zUSDT",
+    "amount": 1,
+    "status": "pending",
+    "createdAt": "2025-10-25T12:43:18.925Z",
+    "interestedParties": [
+      "bob.ztom"
+    ]
+  },
+  {
+    "id": "order-2",
+    "initiator": "charlie.ztom",
+    "initiatorAddress": "0x9876...5432",
+    "fromToken": "zUSDT",
+    "toToken": "zUSDC",
+    "amount": 1,
+    "status": "pending",
+    "createdAt": "2025-10-25T11:43:18.925Z",
+    "interestedParties": []
+  }
+]

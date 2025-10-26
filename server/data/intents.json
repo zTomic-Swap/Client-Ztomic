@@ -1,0 +1,24 @@
+[
+  {
+    "id": 1,
+    "initiator": "alice",
+    "fromToken": "zUSDC",
+    "toToken": "zUSDT",
+    "on-chain": "hedera",
+    "amount": "1",
+    "status": "pending",
+    "createdAt": "2025-10-25T12:43:18.925Z",
+    "interestedParties": []
+  },
+  {
+    "id": 2,
+    "initiator": "bob",
+    "fromToken": "zUSDT",
+    "toToken": "zUSDC",
+    "on-chain": "sepolia",
+    "amount": "1",
+    "status": "pending",
+    "createdAt": "2025-10-25T11:43:18.925Z",
+    "interestedParties": []
+  }
+]
